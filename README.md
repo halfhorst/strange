@@ -24,6 +24,10 @@ often "turn on" something on my second monitor that is calming and visual.
 c99 wants to be. It's performance is also highly dependent on the terminal
 emulator you are using and what it supports.
 
+# Supported Platforms
+
+Strangeland makes use of pseudoterminals and ANSI escape sequences so support is limited to the platforms that support those. I'd expect any unix flavor to work, but windows will not.
+
 ## Demos
 
 A strangeland demo impelement three functions. An initialization function that
