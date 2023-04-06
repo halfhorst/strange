@@ -6,8 +6,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "../renderer.h"
-#include "./denabase.h"
+#include "renderer.h"
+#include "denabase.h"
 
 #define SEQUENCE_BUFFER_SIZE 100000
 

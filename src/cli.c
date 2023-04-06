@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "./renderer.h"
+#include "renderer.h"
 #include "demos/denabase.h"
 #include "demos/digital_rain.h"
 
@@ -13,14 +13,14 @@ static char doc[] = "\nA terminal screensaver.\v"
                     "DEMO_NAME refers to a particular screensaver.  Currently "
                     "supported demos are \"denabase\", and \"digital_rain\".\n"
 
-                    "\n-> denabase is a DNA visualization inspired by Blade "
-                         "Runner 2049."
+                    "\n-> denabase is a DNA visualization inspired by the DNA "
+                    "database from Blade Runner 2049."
                     "\n-> digital_rain is an homage to the digital rain from "
-                         "the Matrix, and Ghost in the Shell before it."
+                    "the Matrix, and Ghost in the Shell before it."
 
                     "\n\nThis program manipulates your tty. If you find it "
-                    "left things in a bad state for any reason, use `tset` or "
-                    "`stty sane` to restore it.";
+                    "left things in a bad state for any reason, try using "
+                    "`tset` or `stty sane` to restore it.";
 
 static char args_doc[] = "DEMO_NAME";
 

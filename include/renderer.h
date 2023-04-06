@@ -1,5 +1,6 @@
 /*
-  The strangeland rendering "engine."
+  The strangeland rendering "engine." Management of the screen buffer and
+  tty.
 
   This takes the form of a single function that performs the actual terminal
   rendering. It is supplied with three functions that define the demo to be

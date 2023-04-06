@@ -1,12 +1,19 @@
-#include <termio.h>
-#include <unistd.h>
+// #include <termio.h>
+// #include <unistd.h>
+#include "renderer.h"
 
 #ifndef TTY_H_
 #define TTY_H_
 
+// #define ANSI_POSITION_CURSOR(x, y) \033[x;yH
+
+// char *ANSI_CLEAR_SCREEN;
+// char *ANSI_HIDE_CURSOR;
+// char *ANSI_SHOW_CURSOR;
+
 /*
   Get the terminal window size in row by column format and return it through
-  `w` and `h`. The return value is 0 on success and 1 on failure.
+  `w` and `h`. Returns 1 on failure.
 */
 int get_window_size(int *w, int *h);
 
@@ -17,6 +24,9 @@ int get_window_size(int *w, int *h);
 int get_idle_seconds();
 
 /*
+
+  Saves current terminal settings and <...>
+
   Stash the current tty settings in `restore_term` and prepare the terminal for
   rendering in `render_term`. This means turning off line buffering, clearing
   the screen, and hiding the cursor.
@@ -26,12 +36,23 @@ int get_idle_seconds();
 
   Returns 0 on success and 1 on failure.
 */
-int init_tty(struct termios *render_term, struct termios *restore_term);
+int prepare_tty();
 
 /*
-  Restore the tty to the settings stored in `restore_term. Returns 0 on
-  success, 1 otherwise.
+  Clear the tty of all characters
+
 */
-int restore_tty(struct termios *restore_term);
+int clear_tty();
+
+/*
+  Print the screen buffer to the tty
+*/
+int print_to_tty(struct ScreenBuffer *screen_buffer);
+
+
+/*
+  Restore the tty to the settings saved at the time `init_tty` was called. This method is a no-op if `init_tty` was never called. Returns 1 on failure.
+*/
+int restore_tty();
 
 #endif  // TTY_H_
