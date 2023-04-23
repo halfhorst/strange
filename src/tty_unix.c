@@ -90,7 +90,7 @@ int restore_tty(struct termios *restore_term) {
   printf("%s", ANSI_CLEAR_SCREEN);
   printf("%s", ANSI_SHOW_CURSOR);
   printf("%s", ANSI_POSITION_TOP_LEFT);
-  // restore tty settings re: input processing
+  // restore input processing tty settings
   if (tcsetattr(STDIN_FILENO, TCSANOW, restore_term) == -1) {
     return 1;
   };

@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include "slsignal.h"
+#include "cleanup.h"
 
 
 void signal_cleanup(int signal);
@@ -16,6 +16,8 @@ void register_cleanup(void (*cleanup)(void)) {
 }
 
 void signal_cleanup(int signal) {
+
+  // this is not set correctly
   cleanup();
   exit(EXIT_SUCCESS);
 }

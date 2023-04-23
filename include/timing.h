@@ -1,22 +1,18 @@
-#ifndef SL_TIMING_H_
-#define SL_TIMING_H_
+#ifndef TIMING_H_
+#define TIMING_H_
 
+#include <stdint.h>
 
-/*
-Start time measurement
-*/
-void start_clock();
+/* Set timing reference point */
+void init_timer();
 
+/* Get elapsed time in ms since the reference point*/
+uint64_t get_time_ms();
 
-/*
-Get time elapsed in ms since start_clock(). Returns 0 if start_clock was never called
-*/
-long end_clock();
+/* Record a frame duration for FPS measurement*/
+void log_frame_time_ms();
 
+/* Get the current, smoothed FPS */
+float get_fps();
 
-/*
-Get the current smoothed FPS
-*/
-int get_fps();
-
-#endif  // SL_TIMING_H_
+#endif  // TIMING_H_

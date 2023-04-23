@@ -1,5 +1,5 @@
-#ifndef SL_SIGNAL_H_
-#define SL_SIGNAL_H_
+#ifndef CLEANUP_H_
+#define CLEANUP_H_
 
 
 /**
@@ -8,4 +8,4 @@
 void register_cleanup(void (*cleanup)(void));
 
 
-#endif  // SL_SIGNAL_H_
+#endif  // CLEANUP_H_

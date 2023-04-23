@@ -33,10 +33,12 @@
 
   On SIGINT, SIGKILL or ss_update returning false, cleanup takes place.
 */
-#include <stdbool.h>
-
 #ifndef RENDERER_H_
 #define RENDERER_H_
+
+#include <stdbool.h>
+
+#include "screensaver.h"
 
 // The padding character used by the renderer. Non-printing C0 control seems to
 // have inconsistent behavior. I trust \0 to never represent a character. The
@@ -64,12 +66,7 @@ struct ScreenBuffer {
 
   `delay` is a duration in ms to wait after each update.
 */
-int render(void (*ss_init)(struct ScreenBuffer *buffer),
-           bool (*ss_update)(struct ScreenBuffer *buffer,
-                             unsigned long frame_count),
-           void (*ss_cleanup)(void),
-           int character_width,
-           int delay);
+int render(struct ScreenSaver screensaver);
 
 /*
   Write `num_chars` from `chars` to the screen at (x, y), where the origin is

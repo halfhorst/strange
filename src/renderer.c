@@ -1,22 +1,19 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-// #include <signal.h>
-// #include <termio.h>
-// #include <time.h>
-// #include <unistd.h>
 #include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "tty.h"
 #include "renderer.h"
-#include "metrics.h"
-#include "slsignal.h"
+#include "cleanup.h"
 #include "timing.h"
+#include "tty.h"
+#include "screensaver.h"
 
-/* Initialize a screen buffer on the stack. Exits the program on failure. */
+/* Initialize a screen buffer in the heap. Exits the program on failure. */
 struct ScreenBuffer *init_screen_buffer(int w, int h, int character_width);
 
-
+/* Free a screen buffer's memory */
 void free_screen_buffer(struct ScreenBuffer *buffer);
 
 /*
@@ -24,12 +21,10 @@ void free_screen_buffer(struct ScreenBuffer *buffer);
   followed by enoug SL_PADDING_CHAR to fill out the screen buffer's character
   width. This pattern is allocated once for use when clearing the screen.
 */
-char *generate_clear_pattern(struct ScreenBuffer *sbuffer);
-
+char *init_clear_pattern(struct ScreenBuffer *sbuffer);
 
 /* Set the buffer to a blank screen. */
 void clear_screen_buffer(struct ScreenBuffer *buffer, char *pattern);
-
 
 /*
   Reposition the cursor to the top left of the terminal and print the screen
@@ -53,67 +48,66 @@ static struct ScreenBuffer *sbuffer;
 // // global tty settings
 // static struct termios render_term, restore_term;
 
-// // global cleanup function, assigned the demo's cleanup so the signal handler
+  // // global cleanup function, assigned the demo's cleanup so the signal handler
 // // can call it
 // static void (*scene_cleanup)(void);
 
 
-int render(void (*ss_init)(struct ScreenBuffer *sbuffer),
-           bool (*ss_update)(struct ScreenBuffer *sbuffer,
-                             unsigned long frame_count),
-           void (*ss_cleanup)(void),
-           int character_width,
-           int delay) {
+int render(struct ScreenSaver screensaver) {
 
-  if (character_width < 1) {
+  // if (character_width < 1) {
+  //   return EXIT_FAILURE;
+  // }
+
+  int window_width, window_height;
+  if (get_window_size(&window_width, &window_height)) {
     return EXIT_FAILURE;
   }
 
-  int w, h;
-  if (get_window_size(&w, &h)) {
-    return EXIT_FAILURE;
-  }
-
-  register_cleanup(ss_cleanup);
-  // scene_cleanup = ss_cleanup;
-  // signal(SIGINT, signal_cleanup);
-  // signal(SIGKILL, signal_cleanup);
+  register_cleanup(screensaver.cleanup);
 
   if (prepare_tty()) {
     return EXIT_FAILURE;
   }
 
-  sbuffer = init_screen_buffer(w, h, character_width);
-  char *clear_pattern = generate_clear_pattern(sbuffer);
-  ss_init(sbuffer);
+  sbuffer = init_screen_buffer(window_width, window_height, screensaver.character_width);
+  char *clear_pattern = init_clear_pattern(sbuffer);
+  screensaver.init(sbuffer);
 
+  init_timer();
   unsigned long frame_count = 0;
-  int prev_w, prev_h;
+  int prev_window_width, prev_window_height;
   for (;;) {
-    prev_w = w;
-    prev_h = h;
-    if (get_window_size(&w, &h) != 0) {
-      ss_cleanup();
+    // check window size
+    prev_window_width = window_width;
+    prev_window_height = window_height;
+    if (get_window_size(&window_width, &window_height) != 0) {
+      screensaver.cleanup();
       free_screen_buffer(sbuffer);
       restore_tty();
       return EXIT_FAILURE;
     }
 
-// #ifndef DEBUG
-    if ((w != prev_w) || (h != prev_h)) {
+    // Re-size if necessary
+    if ((window_width != prev_window_width) || (window_height != prev_window_height)) {
       free_screen_buffer(sbuffer);
-      sbuffer = init_screen_buffer(w, h, character_width);
+      sbuffer = init_screen_buffer(window_width, window_height, screensaver.character_width);
       clear_tty(); // re-sizing introduces artifacts
     } else {
       clear_screen_buffer(sbuffer, clear_pattern);
     }
+
+
 // #endif  // DEBUG
-
-
-    start_clock();
-    if (!ss_update(sbuffer, frame_count)) {
+    // start_frame_measurement();
+    uint64_t before = get_time_ms();
+    if (!screensaver.update(sbuffer)) {
       break;
     }
+    uint64_t after = get_time_ms();
+    uint64_t dt = after - before;
+    log_frame_time_ms(dt);
+    // end_frame_measurement();
     // long duration_micro_seconds = end_clock();
 
     // TODO: Calculate smoothed FPS and overwrite the screen buffer
@@ -125,12 +119,9 @@ int render(void (*ss_init)(struct ScreenBuffer *sbuffer),
 // #endif  // DEBUG
 
     frame_count++;
-
-    // note this is susceptible to pre-emption by the CPU :()
-    // usleep(fmax(0, delay - duration_micro_seconds));
   }
 
-  ss_cleanup();
+  screensaver.cleanup();
   free_screen_buffer(sbuffer);
   restore_tty();
 
@@ -162,8 +153,8 @@ void free_screen_buffer(struct ScreenBuffer *sbuffer) {
   Write bytes to the (x, y) coordinate specified. The origin is defined as
   the upper left corner of the screen. The number of bytes cannot exceed
   the character_width of the screen buffer, and `x` annd `y` cannot exceed
-  the buffer's dimensions. If these conditions are violated, nothing is
-  written.
+  the buffer's dimensions. If these conditions are violated the result is 
+  a no-op.
 */
 void write_to_buffer(struct ScreenBuffer *sbuffer, char *chars, int num_chars,
                      int x, int y) {
@@ -175,7 +166,14 @@ void write_to_buffer(struct ScreenBuffer *sbuffer, char *chars, int num_chars,
   memcpy(sbuffer->buffer + index, chars, num_chars);
 }
 
-char *generate_clear_pattern(struct ScreenBuffer *sbuffer) {
+
+// TODO: Can I just do a memset?
+// No, since I support multi-width characters
+// pattern was more correct. I am only creating a pattern,
+// then stamping it over and over again. in a for loop
+// Can I do something better? Can't buffer swap because
+// the cleared buffer will not remain clear
+char *init_clear_pattern(struct ScreenBuffer *sbuffer) {
   char *pattern = malloc(sizeof(char) * sbuffer->character_width);
   pattern[0] = SL_SPACE_CHAR;
   for (int i = 1; i < sbuffer->character_width; i++) {
@@ -192,21 +190,19 @@ void clear_screen_buffer(struct ScreenBuffer *sbuffer, char *pattern) {
   }
 }
 
-// void print_screen_buffer(struct ScreenBuffer *sbuffer) {
-//   // Reposition cursor to the upper left. Rows are 1-indexed
-//   printf("\033[1;0H");
+void draw_fps(struct ScreenBuffer *buffer, float fps) {
+    uint16_t rounded_fps = round(fps);
+    int x_chars_required = 9;
+    int y_chars_required = 5;
 
-//   for (int i = 0; i < sbuffer->h; i++) {
-//     // fwrite will write past \0, which is great because it's my
-//     // foolproof padding char
-//     fwrite(sbuffer->buffer + (i * sbuffer->w * sbuffer->character_width),
-//            1, (sbuffer->w * sbuffer->character_width), stdout);
-//     printf("\n");
-//   }
-// }
+    if (buffer->w < x_chars_required || buffer->h < y_chars_required) {
+        return;
+    }
 
-// void cleanup() {
-//   ss_cleanup();
-//   free_screen_buffer(sbuffer);
-//   restore_tty();
-// }
+    char formatted_fps[20];
+    snprintf(formatted_fps, sizeof(formatted_fps), " | %.3i | ", rounded_fps);
+
+    // write_to_buffer(buffer, " ───── ", 7, 0, 1);
+    write_to_buffer(buffer, formatted_fps, 9, 0, 2);
+    // write_to_buffer(buffer, " ───── ", 7, 0, 3);
+}

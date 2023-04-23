@@ -2,10 +2,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "renderer.h"
 #include "demos/denabase.h"
 #include "demos/digital_rain.h"
+#include "screensaver.h"
 
 /* Program documentation. After \v is a long description that follows options. */
 static char doc[] = "\nA terminal screensaver.\v"
@@ -25,10 +27,9 @@ static char doc[] = "\nA terminal screensaver.\v"
 static char args_doc[] = "DEMO_NAME";
 
 static struct argp_option options[] = {
-  // TODO: rename delay
-  {"delay",       'd',  "milliseconds", 0, "Delay in milliseconds imposed before "
-                                      "redraw. The default is 16, yielding "
-                                      "approximately 60 FPS." },
+  // {"delay",       'd',  "milliseconds", 0, "Delay in milliseconds imposed before "
+  //                                     "redraw. The default is 16, yielding "
+  //                                     "approximately 60 FPS." },
   // {"screensaver", 's',  "seconds", 0, "Run strangeland in screensaver mode. "
   //                                     "The demo will start after n seconds of "
   //                                     "inactivity on the tty."},
@@ -74,24 +75,20 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 
 int main(int argc, char **argv) {
   struct arguments arguments;
-
-  // Argument defaults.
-  arguments.delay = "16666"; // approximately 60 fps
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
 
-  int delay = atoi(arguments.delay);
-
   char *scene = arguments.args[0];
-  int failed;
+  struct ScreenSaver screensaver;
   if (strncmp(scene, "denabase", 8) == 0) {
-    failed = render(denabase_init, denabase_update, denabase_cleanup,
-                    DENABASE_CHAR_WIDTH, delay);
+    init_screensaver(denabase_init, denabase_update, denabase_cleanup, DENABASE_CHAR_WIDTH, &screensaver);
   } else if (strncmp(scene, "digital_rain", 3) == 0) {
-    failed = render(digital_rain_init, digital_rain_update,
-                    digital_rain_cleanup, DIGITAL_RAIN_CHAR_WIDTH, delay);
+    init_screensaver(digital_rain_init, digital_rain_update, digital_rain_cleanup, DIGITAL_RAIN_CHAR_WIDTH, &screensaver);
   } else {
     fprintf(stderr, "Unknown scene %s\n", scene);
     return EXIT_FAILURE;
   }
-  return failed;
+
+  render(screensaver);
+
+  return EXIT_SUCCESS;
 }

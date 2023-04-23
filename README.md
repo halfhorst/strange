@@ -30,7 +30,6 @@ demos have to be hard-coded in.
 * denabase: a DNA visualization inspired by Blade Runner 2049.
 * digital_rain: An homage to the digital rain from the Matrix, and Ghost in the Shell before it.
 
-
 ## Building
 
 I provide a makefile for building that has targets for each scene. It also
@@ -53,6 +52,12 @@ https://github.com/Rezmason/matrix
 
 clock info: https://stackoverflow.com/questions/12392278/measure-time-in-linux-time-vs-clock-vs-getrusage-vs-clock-gettime-vs-gettimeof
 
+## BUGS
+- [ ] speeds up if screen is smaller?
+- [ ] screen not cleared after ctrl + c
+
+
+
 ## Future Work
 - [ ] pty screensaver functionality
 - [ ] FPS measurement
@@ -61,6 +66,7 @@ clock info: https://stackoverflow.com/questions/12392278/measure-time-in-linux-t
 - [ ] scripting system for screensavers
 - more scenes
     - [ ] SDF raymarching?
+        [SDF lib](https://mercury.sexy/hg_sdf/)
     - [ ] metaballs
 - [ ] add gifs to README
 - [ ] Meson build system?
