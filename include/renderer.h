@@ -79,7 +79,7 @@ int render(struct ScreenSaver screensaver);
 
   This function does no bounds checking at all, that is up to the caller.
 */
-void write_to_buffer(struct ScreenBuffer *sbuffer, char *chars, int num_chars,
-                     int x, int y);
+void write_to_buffer(struct ScreenBuffer *sbuffer, char *chars, 
+                     uint32_t num_chars, uint16_t x, uint16_t y);
 
 #endif  // RENDERER_H_

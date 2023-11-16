@@ -5,7 +5,7 @@
 #include "screensaver.h"
 
 void init_screensaver(
-    void (*ss_init)(struct ScreenBuffer *sbuffer),
+    void (*ss_init)(void),
     bool (*ss_update)(struct ScreenBuffer *sbuffer, uint64_t time, uint32_t dt),
     void (*ss_cleanup)(void),
     u_int16_t character_width,

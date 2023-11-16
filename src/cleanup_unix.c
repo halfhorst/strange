@@ -3,7 +3,6 @@
 
 #include "cleanup.h"
 
-
 void signal_cleanup(int signal);
 
 static void (*cleanup)(void);
@@ -16,8 +15,7 @@ void register_cleanup(void (*cleanup)(void)) {
 }
 
 void signal_cleanup(int signal) {
-
-  // this is not set correctly
+  // FIXME: this is not set correctly
   cleanup();
   exit(EXIT_SUCCESS);
 }

@@ -5,7 +5,7 @@ CFLAGS = -Iinclude -Iinclude/demos -Wall -pedantic
 LDFLAGS =
 LDLIBS = -lm
 
-OBJECTS = cli.o tty.o renderer.o cleanup.o timing.o denabase.o digital_rain.o
+OBJECTS = cli.o tty.o renderer.o cleanup.o timing.o screensaver.o denabase.o digital_rain.o
 
 all: strange
 
@@ -21,13 +21,14 @@ benchmark: strange
 # -fsanitize=undefined
 # -fsanitize=leak
 
-
 strange: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 cli.o: src/cli.c
 	$(CC) $(CFLAGS) -c $<
 renderer.o: src/renderer.c include/renderer.h
+	$(CC) $(CFLAGS) -c $<
+screensaver.o: src/screensaver.c include/screensaver.h
 	$(CC) $(CFLAGS) -c $<
 denabase.o: src/demos/denabase.c include/demos/denabase.h
 	$(CC) $(CFLAGS) -c $<

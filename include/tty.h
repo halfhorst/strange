@@ -1,9 +1,7 @@
-// #include <termio.h>
-// #include <unistd.h>
-#include "renderer.h"
-
 #ifndef TTY_H_
 #define TTY_H_
+
+#include "renderer.h"
 
 // #define ANSI_POSITION_CURSOR(x, y) \033[x;yH
 

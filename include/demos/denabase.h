@@ -29,8 +29,8 @@
 
 #define DENABASE_CHAR_WIDTH 1
 
-void denabase_init(struct ScreenBuffer *sbuffer);
-bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count);
+void denabase_init(void);
+bool denabase_update(struct ScreenBuffer *sbuffer, uint64_t time, uint32_t dt);
 void denabase_cleanup(void);
 
 #endif  // DENABASE_H_

@@ -96,19 +96,18 @@ void toggle_streams(int w, int minimum_stream_length);
   scroll_rate % frame_count == 0 and if it is greater than -1 and less than or
   equal to `h`.
 */
-void shift_visible_window(int w, int h, unsigned long frame_count);
+void shift_visible_window(int w, int h, uint64_t time);
 
 
 // Digital Rain global state
 static struct Stream *streams;
 
 
-void digital_rain_init(struct ScreenBuffer *sbuffer) {
+void digital_rain_init(void) {
   streams = allocate_streams(STREAM_BUFFER_NUM, STREAM_BUFFER_SIZE);
 }
 
-bool digital_rain_update(struct ScreenBuffer *sbuffer,
-                         unsigned long frame_count) {
+bool digital_rain_update(struct ScreenBuffer *sbuffer, uint64_t time, uint32_t dt) {
   if ((sbuffer->h > STREAM_BUFFER_SIZE) || (sbuffer->w > STREAM_BUFFER_NUM)) {
     return false;
   }
@@ -116,7 +115,7 @@ bool digital_rain_update(struct ScreenBuffer *sbuffer,
   int minimum_stream_length = sbuffer->h / 3;
   toggle_streams(sbuffer->w, minimum_stream_length);
 
-  shift_visible_window(sbuffer->w, sbuffer->h, frame_count);
+  shift_visible_window(sbuffer->w, sbuffer->h, time);
 
   // for each stream in scope, print its visible region
   for (int i = 0; i < sbuffer->w; i++) {
@@ -215,9 +214,9 @@ void toggle_streams(int w, int minimum_stream_length) {
   }
 }
 
-void shift_visible_window(int w, int h, unsigned long frame_count) {
+void shift_visible_window(int w, int h, uint64_t time) {
   for (int i = 0; i < w; i++) {
-    bool trace = (frame_count % streams[i].scroll_rate) == 0;
+    bool trace = (time % streams[i].scroll_rate) == 0;
     if (trace) {
       if ((streams[i].end_visible > -1) && (streams[i].end_visible <= h)) {
         streams[i].end_visible++;

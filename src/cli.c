@@ -8,6 +8,8 @@
 #include "demos/denabase.h"
 #include "demos/digital_rain.h"
 #include "screensaver.h"
+#include "cleanup.h"
+#include "tty.h"
 
 /* Program documentation. After \v is a long description that follows options. */
 static char doc[] = "\nA terminal screensaver.\v"
@@ -82,12 +84,19 @@ int main(int argc, char **argv) {
   if (strncmp(scene, "denabase", 8) == 0) {
     init_screensaver(denabase_init, denabase_update, denabase_cleanup, DENABASE_CHAR_WIDTH, &screensaver);
   } else if (strncmp(scene, "digital_rain", 3) == 0) {
-    init_screensaver(digital_rain_init, digital_rain_update, digital_rain_cleanup, DIGITAL_RAIN_CHAR_WIDTH, &screensaver);
+    // init_screensaver(digital_rain_init, digital_rain_update, digital_rain_cleanup, DIGITAL_RAIN_CHAR_WIDTH, &screensaver);
   } else {
     fprintf(stderr, "Unknown scene %s\n", scene);
     return EXIT_FAILURE;
   }
 
+  register_cleanup(screensaver.cleanup);
+
+  if (prepare_tty()) {
+    return EXIT_FAILURE;
+  }
+
+  screensaver.init();
   render(screensaver);
 
   return EXIT_SUCCESS;

@@ -7,15 +7,15 @@
 struct ScreenBuffer;
 
 struct ScreenSaver {
-    void (*init)(struct ScreenBuffer *screenbuffer);
-    bool (*update)(struct ScreenBuffer *screenbuffer, uint64_t time, u_int32_t dt);
+    void (*init)(void);
+    bool (*update)(struct ScreenBuffer *screenbuffer, uint64_t time, uint32_t dt);
     void (*cleanup)(void);
     uint16_t character_width;
 };  
 
 void init_screensaver(
-    void (*ss_init)(struct ScreenBuffer *screenbuffer),
-    bool (*ss_update)(struct ScreenBuffer *screenbuffer, uint64_t time, u_int32_t dt),
+    void (*ss_init)(void),
+    bool (*ss_update)(struct ScreenBuffer *screenbuffer, uint64_t time, uint32_t dt),
     void (*ss_cleanup)(void),
     uint16_t character_width,
     struct ScreenSaver *ret

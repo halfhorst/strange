@@ -54,7 +54,7 @@ void generate_random_sequence(int capacity, bool isDNA, char *sequence_buffer);
 void get_sequence_complement(char *sequence, int capacity, bool isDNA,
                              char *complement_buffer);
 char get_complement(char nucleotide, bool isDNA);
-bool draw_helix(struct ScreenBuffer *sbuffer, unsigned long frame_count,
+bool draw_helix(struct ScreenBuffer *sbuffer, uint64_t time,
                 int t_min, int t_max);
 void draw_linkage(struct ScreenBuffer *sbuffer, int min_x, int max_x, int y,
                   int sequence_index);
@@ -66,7 +66,7 @@ static struct Helix *strand_2;
 static struct DnaSequence *dna_sequence;
 static int block_sequence_index;
 
-void denabase_init(struct ScreenBuffer *sbuffer) {
+void denabase_init(void) {
   dna_sequence = allocate_dna_sequence("IDENT: #09817");
   bool isDNA = true;
   generate_random_sequence(dna_sequence->capacity, isDNA, dna_sequence->sequence);
@@ -108,12 +108,12 @@ void denabase_cleanup(void) {
   free(strand_2);
 }
 
-bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count) {
+bool denabase_update(struct ScreenBuffer *sbuffer, uint64_t time, uint32_t dt) {
   bool isDNA = true;
   int helix_center = sbuffer->w * 0.75;
 
   float y_shift = strand_1->y_shift;
-  if ((frame_count % HELIX_SCROLL_SPEED) == 0) {
+  if ((time % HELIX_SCROLL_SPEED) == 0) {
     y_shift--;
   }
   update_helix(STRAND_RADIUS, STRAND_PITCH, helix_center,
@@ -146,7 +146,7 @@ bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count) {
   // int helix_sequence_index = t_index + ((sbuffer->w / 2) - 3) * (sbuffer->h / 2);
 
   // draw the helix from t_min to t_max
-  draw_helix(sbuffer, frame_count, t_min, t_max);
+  draw_helix(sbuffer, time, t_min, t_max);
 
   // draw the nucleic acid block
   draw_nucleic_acid_block(sbuffer, block_sequence_index);
@@ -160,7 +160,7 @@ bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count) {
   necessary to cover the window is calculated, and the helix is shifted
   by offsetting t by time or frame count.
 */
-bool draw_helix(struct ScreenBuffer *sbuffer, unsigned long frame_count,
+bool draw_helix(struct ScreenBuffer *sbuffer, uint64_t time,
                 int t_min, int t_max) {
 
   float t_resolution = 10;
