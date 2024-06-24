@@ -1,3 +1,5 @@
+build/
+
 # Prerequisites
 *.d
 
@@ -51,8 +53,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# IDE/OS things
+# Misc. junk
 .vscode/
 .DS_Store
-
-strange
