@@ -1,5 +1,5 @@
-#include <stdlib.h>
 #include <signal.h>
+#include <stdlib.h>
 
 #include "cleanup.h"
 
@@ -11,7 +11,6 @@ void register_cleanup(void (*cleanup)(void)) {
   cleanup = cleanup;
   signal(SIGINT, signal_cleanup);
   signal(SIGTERM, signal_cleanup);
-
 }
 
 void signal_cleanup(int signal) {

@@ -51,7 +51,7 @@
 struct ScreenBuffer {
   int w;
   int h;
-  char *buffer;
+  char* buffer;
   int character_width;  // the number of characters reserved for each (x, y)
 };
 
@@ -79,7 +79,7 @@ int render(struct ScreenSaver screensaver);
 
   This function does no bounds checking at all, that is up to the caller.
 */
-void write_to_buffer(struct ScreenBuffer *sbuffer, char *chars, 
+void write_to_buffer(struct ScreenBuffer* sbuffer, char* chars,
                      uint32_t num_chars, uint16_t x, uint16_t y);
 
 #endif  // RENDERER_H_

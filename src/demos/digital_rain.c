@@ -1,11 +1,12 @@
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include "digital_rain.h"
 
-#include "./digital_rain.h"
-#include "../renderer.h"
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "renderer.h"
 
 // The rate at which individual characters are shuffled
 #define CHAR_SHUFFLE_RATE 0.02
@@ -17,7 +18,7 @@
 #define STREAM_SHUTDOWN_RATE 0.006
 
 // The rate in frames at which the visible window scrolls
-# define STREAM_SCROLL_RATE 3 + (rand() % 10)
+#define STREAM_SCROLL_RATE 3 + (rand() % 10)
 
 // The minimum char length of a stream. Streams less than this length cannot be
 // turned off.
@@ -26,7 +27,7 @@
 // The number and length of allocated streams. Bigger than any reasonable
 // terminal (I hope)
 #define STREAM_BUFFER_SIZE 250
-#define STREAM_BUFFER_NUM  750
+#define STREAM_BUFFER_NUM 750
 
 /*
   A vertical stream of characters. This stream is visible over a defined
@@ -41,7 +42,7 @@ struct Stream {
   int x;              // the horizontal position of the stream
   int start_visible;  // the start of the visible region of the stream
   int end_visible;    // the end of the visible region of the stream
-  char *characters;   // the stream of characters itself
+  char* characters;   // the stream of characters itself
   int buffer_size;    // the length of the `characters` buffer
   int scroll_rate;    // the rate at which the visible window shifts. This is
                       // modded against frame # to determine when increments
@@ -52,19 +53,19 @@ struct Stream {
   Allocates streams on the heap, returning NULL on failure. The streams are
   parametrized by several define statements above.
 */
-struct Stream *allocate_streams();
+struct Stream* allocate_streams();
 
 /*
   Place a random character in `buffer`. Charcters are drawn from UTF-8
   half-width katakana and the digits [0, 9].
 */
-void random_character(char *buff);
+void random_character(char* buff);
 
 /*
   Allocate a character stream of `n` random characters on the heap. Returns
   NULL on failure.
 */
-char *get_character_stream(int n);
+char* get_character_stream(int n);
 
 /*
   Modifies global stream state.
@@ -98,16 +99,15 @@ void toggle_streams(int w, int minimum_stream_length);
 */
 void shift_visible_window(int w, int h, uint64_t time);
 
-
 // Digital Rain global state
-static struct Stream *streams;
-
+static struct Stream* streams;
 
 void digital_rain_init(void) {
   streams = allocate_streams(STREAM_BUFFER_NUM, STREAM_BUFFER_SIZE);
 }
 
-bool digital_rain_update(struct ScreenBuffer *sbuffer, uint64_t time, uint32_t dt) {
+bool digital_rain_update(struct ScreenBuffer* sbuffer, uint64_t time,
+                         uint32_t dt) {
   if ((sbuffer->h > STREAM_BUFFER_SIZE) || (sbuffer->w > STREAM_BUFFER_NUM)) {
     return false;
   }
@@ -120,12 +120,10 @@ bool digital_rain_update(struct ScreenBuffer *sbuffer, uint64_t time, uint32_t d
   // for each stream in scope, print its visible region
   for (int i = 0; i < sbuffer->w; i++) {
     for (int j = streams[i].start_visible;
-         j < fmin(sbuffer->h, streams[i].end_visible);
-         j++) {
+         j < fmin(sbuffer->h, streams[i].end_visible); j++) {
       if (j >= 0) {
-
         // shuffle visisble characters according to our rate
-        if (((float) rand() / RAND_MAX) < CHAR_SHUFFLE_RATE) {
+        if (((float)rand() / RAND_MAX) < CHAR_SHUFFLE_RATE) {
           char character[DIGITAL_RAIN_CHAR_WIDTH];
           random_character(character);
           memcpy(streams[i].characters + (j * DIGITAL_RAIN_CHAR_WIDTH),
@@ -148,8 +146,8 @@ void digital_rain_cleanup(void) {
   free(streams);
 }
 
-struct Stream *allocate_streams() {
-  struct Stream *streams = malloc(sizeof(struct Stream) * STREAM_BUFFER_NUM);
+struct Stream* allocate_streams() {
+  struct Stream* streams = malloc(sizeof(struct Stream) * STREAM_BUFFER_NUM);
   if (streams == NULL) {
     return NULL;
   }
@@ -165,31 +163,30 @@ struct Stream *allocate_streams() {
   return streams;
 }
 
-void random_character(char *buffer) {
-  float draw = (float) rand() / RAND_MAX;
+void random_character(char* buffer) {
+  float draw = (float)rand() / RAND_MAX;
   if (draw < 0.45) {
-    buffer[0] = (char) 0xEF;
-    buffer[1] = (char) 0xBD;
-    buffer[2] = (char) 0xA5 + (rand() % 27);
+    buffer[0] = (char)0xEF;
+    buffer[1] = (char)0xBD;
+    buffer[2] = (char)0xA5 + (rand() % 27);
   } else if (draw < 0.9) {
-    buffer[0] = (char) 0xEF;
-    buffer[1] = (char) 0xBE;
-    buffer[2] = (char) 0x80 + (rand() % 30);
+    buffer[0] = (char)0xEF;
+    buffer[1] = (char)0xBE;
+    buffer[2] = (char)0x80 + (rand() % 30);
   } else {
-    buffer[0] = (char) 0x30 + (rand() % 10);
-    buffer[1] = (char) SL_PAD_CHAR;
-    buffer[2] = (char) SL_PAD_CHAR;
+    buffer[0] = (char)0x30 + (rand() % 10);
+    buffer[1] = (char)SL_PAD_CHAR;
+    buffer[2] = (char)SL_PAD_CHAR;
   }
 }
 
-char *get_character_stream(int n) {
-  char *char_stream = malloc(sizeof(char) * n * DIGITAL_RAIN_CHAR_WIDTH);
+char* get_character_stream(int n) {
+  char* char_stream = malloc(sizeof(char) * n * DIGITAL_RAIN_CHAR_WIDTH);
   if (char_stream == NULL) {
     return NULL;
   }
-  for (int i = 0;
-        i < (n * DIGITAL_RAIN_CHAR_WIDTH);
-          i += DIGITAL_RAIN_CHAR_WIDTH) {
+  for (int i = 0; i < (n * DIGITAL_RAIN_CHAR_WIDTH);
+       i += DIGITAL_RAIN_CHAR_WIDTH) {
     char kana[DIGITAL_RAIN_CHAR_WIDTH];
     random_character(kana);
     memcpy(char_stream + i, kana, DIGITAL_RAIN_CHAR_WIDTH);
@@ -200,17 +197,17 @@ char *get_character_stream(int n) {
 void toggle_streams(int w, int minimum_stream_length) {
   for (int i = 0; i < w; i++) {
     // off is defined as end_visible == -1
-    // on and eligible is defined as end_visible > the minimum desired stream length
+    // on and eligible is defined as end_visible > the minimum desired stream
+    // length
     if (streams[i].end_visible == -1) {
-      if (((float) rand() / RAND_MAX) < STREAM_ACTIVATE_RATE) {
-        streams[i].end_visible++; // begin end of window incrementing
+      if (((float)rand() / RAND_MAX) < STREAM_ACTIVATE_RATE) {
+        streams[i].end_visible++;  // begin end of window incrementing
       }
     } else if (streams[i].end_visible > minimum_stream_length) {
-      if (((float) rand() / RAND_MAX) < STREAM_SHUTDOWN_RATE) {
-        streams[i].start_visible++; // begin start of window incrementing
+      if (((float)rand() / RAND_MAX) < STREAM_SHUTDOWN_RATE) {
+        streams[i].start_visible++;  // begin start of window incrementing
       }
     }
-
   }
 }
 

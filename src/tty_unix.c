@@ -1,21 +1,20 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <termios.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 
-#include "tty.h"
 #include "renderer.h"
+#include "tty.h"
 
-static char *ANSI_CLEAR_SCREEN = "\033[2J";
-static char *ANSI_HIDE_CURSOR = "\033[?25l";
-static char *ANSI_SHOW_CURSOR = "\033[?25h";
-static char *ANSI_POSITION_TOP_LEFT = "\033[1;0H";
+static char* ANSI_CLEAR_SCREEN = "\033[2J";
+static char* ANSI_HIDE_CURSOR = "\033[?25l";
+static char* ANSI_SHOW_CURSOR = "\033[?25h";
+static char* ANSI_POSITION_TOP_LEFT = "\033[1;0H";
 
 static struct termios render_term, restore_term;
-
 
 int get_idle_seconds() {
   // char const *tty = ttyname(STDIN_FILENO);
@@ -27,7 +26,7 @@ int get_idle_seconds() {
   return 0;
 }
 
-int get_window_size(int *w, int *h) {
+int get_window_size(int* w, int* h) {
   struct winsize ws;
   if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == -1) {
     return 1;
@@ -59,7 +58,7 @@ int prepare_tty() {
     return 1;
   };
 
-  setbuf(stdout, NULL); // turn off line buffering
+  setbuf(stdout, NULL);  // turn off line buffering
   printf("%s", ANSI_CLEAR_SCREEN);
   printf("%s", ANSI_HIDE_CURSOR);
 
@@ -71,14 +70,14 @@ int clear_tty() {
   return 0;
 }
 
-
-int print_to_tty(struct ScreenBuffer *screen_buffer) {
+int print_to_tty(struct ScreenBuffer* screen_buffer) {
   printf("%s", ANSI_POSITION_TOP_LEFT);
 
   for (int i = 0; i < screen_buffer->h; i++) {
     // fwrite will write past \0, which is great because it's my
     // foolproof padding char
-    fwrite(screen_buffer->buffer + (i * screen_buffer->w * screen_buffer->character_width),
+    fwrite(screen_buffer->buffer +
+               (i * screen_buffer->w * screen_buffer->character_width),
            1, (screen_buffer->w * screen_buffer->character_width), stdout);
     printf("\n");
   }
@@ -86,7 +85,7 @@ int print_to_tty(struct ScreenBuffer *screen_buffer) {
   return 0;
 }
 
-int restore_tty(struct termios *restore_term) {
+int restore_tty(struct termios* restore_term) {
   printf("%s", ANSI_CLEAR_SCREEN);
   printf("%s", ANSI_SHOW_CURSOR);
   printf("%s", ANSI_POSITION_TOP_LEFT);

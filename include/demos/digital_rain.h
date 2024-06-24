@@ -42,7 +42,8 @@
 #define DIGITAL_RAIN_CHAR_WIDTH 3
 
 void digital_rain_init(void);
-bool digital_rain_update(struct ScreenBuffer *buffer, uint64_t time, uint32_t dt);
+bool digital_rain_update(struct ScreenBuffer* buffer, uint64_t time,
+                         uint32_t dt);
 void digital_rain_cleanup(void);
 
 #endif  // DIGITAL_RAIN_H_
