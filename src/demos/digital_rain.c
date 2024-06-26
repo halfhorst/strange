@@ -1,4 +1,4 @@
-#include "digital_rain.h"
+#include "demos/digital_rain.h"
 
 #include <math.h>
 #include <stdbool.h>

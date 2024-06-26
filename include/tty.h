@@ -19,7 +19,7 @@ int get_window_size(int* w, int* h);
   Get the idle time on the terminal in seconds based on stdin. Returns -1 on
   failure.
 */
-int get_idle_seconds();
+int get_idle_seconds(void);
 
 /*
 
@@ -34,13 +34,13 @@ int get_idle_seconds();
 
   Returns 0 on success and 1 on failure.
 */
-int prepare_tty();
+int prepare_tty(void);
 
 /*
   Clear the tty of all characters
 
 */
-int clear_tty();
+int clear_tty(void);
 
 /*
   Print the screen buffer to the tty
@@ -51,6 +51,6 @@ int print_to_tty(struct ScreenBuffer* screen_buffer);
   Restore the tty to the settings saved at the time `init_tty` was called. This
   method is a no-op if `init_tty` was never called. Returns 1 on failure.
 */
-int restore_tty();
+int restore_tty(void);
 
 #endif  // TTY_H_

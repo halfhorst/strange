@@ -25,7 +25,7 @@ pid_t fork_pty(int leaderFd, char* followerName,
                const struct termios* followerTermios,
                const struct winsize* followerWs);
 
-int main(void) {
+int _main(void) {
   char followerName[PTY_NAME_BUFF_LEN];
 
   // save current termios settings

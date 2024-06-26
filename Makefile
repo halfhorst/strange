@@ -1,7 +1,7 @@
 .POSIX:
 
 CC = clang
-CCFLAGS = -std=c99 -Wall -Wextra -Werror -pedantic
+CCFLAGS = -std=c99 -Wall -Wextra -pedantic -fsanitize=address,undefined,leak
 LDFLAGS = -Iinclude
 
 SRC_DIR=src
@@ -11,12 +11,21 @@ TARGET = strange
 SOURCES = $(wildcard $(SRC_DIR)/*.c)
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 
+DEMO_SOURCES = $(wildcard $(SRC_DIR)/demos/*.c)
+DEMO_OBJECTS = $(DEMO_SOURCES:$(SRC_DIR)/demo/%.c=$(BUILD_DIR)/%.o)
+
 all: strange
 
 debug: CFLAGS += -g
 debug: strange
 
-strange: $(OBJECTS)
+clangd:
+	bear --output build/compile_commands.json -- make
+
+analyze:
+	scan-build make
+
+strange: $(OBJECTS) $(DEMO_OBJECTS)
 	$(CC) $(CCFLAGS) $^ -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
@@ -35,4 +44,4 @@ cube: strange
 digital_rain: strange
 	./strange digital_rain
 
-.PHONY: all clean debug denabase cube digital_rain
+.PHONY: all clangd strange clean debug denabase cube digital_rain

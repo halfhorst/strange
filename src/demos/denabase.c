@@ -1,4 +1,4 @@
-#include "denabase.h"
+#include "demos/denabase.h"
 
 #include <math.h>
 #include <stdbool.h>

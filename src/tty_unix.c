@@ -16,7 +16,7 @@ static char* ANSI_POSITION_TOP_LEFT = "\033[1;0H";
 
 static struct termios render_term, restore_term;
 
-int get_idle_seconds() {
+int get_idle_seconds(void) {
   // char const *tty = ttyname(STDIN_FILENO);
   // struct stat sbuf;
   // if (stat(tty, &sbuf) == -1) {
@@ -37,7 +37,7 @@ int get_window_size(int* w, int* h) {
   return 0;
 }
 
-int prepare_tty() {
+int prepare_tty(void) {
   // Stash current settings
   if (tcgetattr(STDIN_FILENO, &render_term) == -1) {
     return 1;
@@ -65,7 +65,7 @@ int prepare_tty() {
   return 0;
 }
 
-int clear_tty() {
+int clear_tty(void) {
   printf("%s", ANSI_CLEAR_SCREEN);
   return 0;
 }
@@ -85,12 +85,12 @@ int print_to_tty(struct ScreenBuffer* screen_buffer) {
   return 0;
 }
 
-int restore_tty(struct termios* restore_term) {
+int restore_tty() {
   printf("%s", ANSI_CLEAR_SCREEN);
   printf("%s", ANSI_SHOW_CURSOR);
   printf("%s", ANSI_POSITION_TOP_LEFT);
-  // restore input processing tty settings
-  if (tcsetattr(STDIN_FILENO, TCSANOW, restore_term) == -1) {
+  // TODO: check for unset restore_term
+  if (tcsetattr(STDIN_FILENO, TCSANOW, &restore_term) == -1) {
     return 1;
   };
 

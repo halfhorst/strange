@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../renderer.h"
+#include "renderer.h"
 
 /*
   We render fixed-width katakana. 3 bytes are needed for the UTF-8

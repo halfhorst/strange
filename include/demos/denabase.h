@@ -22,7 +22,7 @@
 */
 #include <stdbool.h>
 
-#include "../renderer.h"
+#include "renderer.h"
 
 #ifndef DENABASE_H_
 #define DENABASE_H_
