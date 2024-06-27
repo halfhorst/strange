@@ -1,7 +1,7 @@
 .POSIX:
 
 CC = clang
-CCFLAGS = -std=c99 -Wall -Wextra -pedantic -fsanitize=address,undefined,leak
+CCFLAGS = -std=c99 -Wall -Wextra -pedantic # -fsanitize=address,undefined,leak
 LDFLAGS = -Iinclude
 
 SRC_DIR=src
@@ -36,12 +36,12 @@ clean:
 	rm -rf $(BUILD_DIR) strange
 
 denabase: strange
-	./strange  denabase
+	./strange -s denabase -d 10
 
 cube: strange
-	./strange --delay=250 cube
+	./strange -s cube -d 10
 
 digital_rain: strange
-	./strange digital_rain
+	./strange -s digital_rain -d 10
 
 .PHONY: all clangd strange clean debug denabase cube digital_rain

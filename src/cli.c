@@ -11,13 +11,13 @@
 #include "screensaver.h"
 #include "tty.h"
 
-void print_usage() { printf("Usage: strange -s <string> -i <integer>\n"); }
+void print_usage(void) { printf("Usage: strange -s SCREENSAVER -d DELAY\n"); }
 
-void print_help() {
+void print_help(void) {
+  print_usage();
   printf(
-      "strange is a terminal screensaver.\n"
-      "Starts a screensaver rendering in the terminal. "
-      "DEMO_NAME refers to a particular screensaver.  Currently "
+      "\nstrange is a terminal screensaver."
+      "\n\nSCREEN_SAVER  refers to a particular screensaver.  Currently "
       "supported demos are \"denabase\", and \"digital_rain\".\n"
 
       "\n-> denabase is a DNA visualization inspired by the DNA "
@@ -35,12 +35,12 @@ int main(int argc, char** argv) {
   char* name = NULL;
   int delay = 0;
 
-  while ((opt = getopt(argc, argv, "s:i:h:")) != -1) {
+  while ((opt = getopt(argc, argv, ":s:d:h")) != -1) {
     switch (opt) {
       case 's':
         name = optarg;
         break;
-      case 'i':
+      case 'd':
         delay = atoi(optarg);
         break;
       case 'h':
@@ -53,17 +53,18 @@ int main(int argc, char** argv) {
   }
 
   if (name == NULL || delay == 0) {
-    print_usage(argv[0]);
+    print_usage();
     return EXIT_FAILURE;
   }
 
   struct ScreenSaver screensaver;
-  if (strncmp(name, "denabase", 8) == 0) {
+  if (strcmp(name, "denabase") == 0) {
     init_screensaver(denabase_init, denabase_update, denabase_cleanup,
                      DENABASE_CHAR_WIDTH, &screensaver);
   } else if (strncmp(name, "digital_rain", 3) == 0) {
-    // init_screensaver(digital_rain_init, digital_rain_update,
-    // digital_rain_cleanup, DIGITAL_RAIN_CHAR_WIDTH, &screensaver);
+    init_screensaver(digital_rain_init, digital_rain_update,
+                     digital_rain_cleanup, DIGITAL_RAIN_CHAR_WIDTH,
+                     &screensaver);
   } else {
     fprintf(stderr, "Unknown scene %s\n", name);
     return EXIT_FAILURE;
