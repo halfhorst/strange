@@ -12,6 +12,9 @@ debug: strangeland
 benchmark: CCFLAGS += -DDEBUG -pg
 benchmark: strangeland
 
+foo: pty/main.o pty/screensaver.o pty/timer.o pty/pty.o pty/watermark.c
+	$(CC) $(CCFLAGS) $^ -o $@ $(LDFLAGS)
+
 strangeland: $(OBJECTS)
 	$(CC) $(CCFLAGS) $^ -o $@ $(LDFLAGS)
 

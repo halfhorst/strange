@@ -1,28 +1,19 @@
 # Strange Land
 
 Something entertaining to put on your terminal when you aren't doing anything
-with it. Inspired by a daydream of a terminal screensaver.
+with it. I'd forgotten about screensavers, to be honest, until I read this
+passage:
 
 > They went to the living room; Jill sat at his feet and they applied
 > themselves to martinis. Opposite his chair was a stereovision tank disguised
-> as an aquarium; he switched it on, guppies and tetras gave way to the face
-> of the well-known Winchell Augustus Greaves."
+> as an aquarium; he switched it on, guppies and tetras gave way to the face of
+> the well-known Winchell Augustus Greaves." 
 > -- _Stranger in a Strange Land_, Robert Heinlein
 
-Right now, `strangeland` doesn't actually function as a screensaver, meaning it
-won't spring in to action after a period of inactivity. I can monitor stdin's
-tty to get idle time but I haven't figured out the best
-fork-into-the-background or daemonization scheme to come back and get access
-to the right tty device.
-
-Of course, a screensaver isn't necessary in most places today. Phosphor burn-in
-isn't a risk. Still, they are nostalgic and pretty and the graphics are fun. I
-often "turn on" something on my second monitor that is calming and visual.
-`strangeland` fits that role.
-
-`strangeland` is heavy on Posix and not strictly c99 so it isn't portable like
-c99 wants to be. It's performance is also highly dependent on the terminal
-emulator you are using and what it supports.
+Of course, a screensaver isn't necessary in most places today. Modern screens
+don't use technology that suffers from phosphor burn-in. Still, they are
+nostalgic and fun, so I wanted to bring them back.I often "turn on" something
+on my second monitor that is calming and visual. `strangeland` fits that role.
 
 ## Demos
 
@@ -37,13 +28,14 @@ language I want to play with, like Janet or Chibi-Scheme). For this prototype
 demos have to be hard-coded in.
 
 * denabase: a DNA visualization inspired by Blade Runner 2049.
-* digital_rain: An homage to the digital rain from the Matrix, and Ghost in the Shell before it.
+* digital_rain: An homage to the digital rain from The Matrix and Ghost in the
+  Shell.
 
 ## Building
 
-I provide a makefile for building that has targets for each scene. It also
-has debug and benchmark targets. Benchmarking compiles for `gprof` and is
-useful for identifying bottlenecks in your update function.
+I provide a makefile for building that has targets for each scene. It also has
+debug and benchmark targets. Benchmarking compiles for `gprof` and is useful
+for identifying bottlenecks in your update function.
 
 ## Similar Projects
 
@@ -51,10 +43,11 @@ useful for identifying bottlenecks in your update function.
 rterm. It was helpful to look at and the raymarched scene is really nice.
 
 ## TODO:
-
-* Add some gifs to the README
 * Implement a few more scenes.
-    * Signed distance fields and raymarching
-    * metaballs
-* Pursue some sort of plugins for demos
-* Play with scripting
+    * SDF Rotating Cube
+    * Metaballs
+* Add lua bindings and embed an interpreter
+* Hot reload screensavers from home directory
+    * either screensaver SOs or lua scripts
+* Optional watermark in the terminal to know you are in "screensaver mode"
+* Watermark during screensaver indicating any key will resume, and special key to quit altogether
