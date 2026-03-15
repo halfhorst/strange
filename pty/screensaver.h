@@ -13,4 +13,3 @@ void set_screensaver_timeout(int seconds);
 int get_screensaver_timeout(void);
 void reset_activity_timer(void);
 int check_screensaver_timeout(void);
-void cleanup_screensaver(int sig);

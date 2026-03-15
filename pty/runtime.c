@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include "pty.h"
 #include "screensaver.h"
@@ -22,12 +23,42 @@ int strange_run(const struct strange_options *options) {
     return 1;
   }
 
-  int flags = fcntl(STDIN_FILENO, F_GETFL);
-  if (flags == -1 || fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1) {
+  int stdin_flags = fcntl(STDIN_FILENO, F_GETFL);
+  if (stdin_flags == -1 ||
+      fcntl(STDIN_FILENO, F_SETFL, stdin_flags | O_NONBLOCK) == -1) {
     perror("fcntl");
+    cleanup_pty();
     return 1;
   }
 
   set_screensaver_timeout(options->timeout_seconds);
-  return run_screensaver_loop();
+
+  int runtime_status = run_screensaver_loop();
+  int shell_status = 0;
+  int shell_exited = poll_shell_exit(&shell_status);
+
+  if (fcntl(STDIN_FILENO, F_SETFL, stdin_flags) == -1) {
+    perror("fcntl");
+    runtime_status = 1;
+  }
+
+  cleanup_pty();
+
+  if (runtime_status != 0) {
+    return 1;
+  }
+  if (shell_exited == -1) {
+    perror("waitpid");
+    return 1;
+  }
+  if (shell_exited == 1) {
+    if (WIFEXITED(shell_status)) {
+      return WEXITSTATUS(shell_status);
+    }
+    if (WIFSIGNALED(shell_status)) {
+      return 128 + WTERMSIG(shell_status);
+    }
+  }
+
+  return 0;
 }
