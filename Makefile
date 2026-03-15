@@ -1,37 +1,21 @@
-CCFLAGS = -Wall -pedantic
+CCFLAGS = -Wall -Wextra -pedantic
 LDFLAGS = -lm
 
-TARGET = strangeland
-OBJECTS = cli.o tty.o renderer.o demos/denabase.o demos/digital_rain.o
+TARGET = strange
+OBJECTS = main.o pty/runtime.o pty/pty.o pty/screensaver.o pty/watermark.o
 
-all: strangeland
+.PHONY: all clean debug
+
+all: $(TARGET)
 
 debug: CCFLAGS += -g
-debug: strangeland
+debug: $(TARGET)
 
-benchmark: CCFLAGS += -DDEBUG -pg
-benchmark: strangeland
-
-foo: pty/main.o pty/screensaver.o pty/timer.o pty/pty.o pty/watermark.c
-	$(CC) $(CCFLAGS) $^ -o $@ $(LDFLAGS)
-
-strangeland: $(OBJECTS)
+$(TARGET): $(OBJECTS)
 	$(CC) $(CCFLAGS) $^ -o $@ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CCFLAGS) -c $< -o $@ $(LDFLAGS)
-
-demos/%.o: demos/%.c
-	$(CC) $(CCFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CCFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o demos/*.o strangeland
-
-denabase: strangeland
-	./strangeland  denabase
-
-cube: strangeland
-	./strangeland --delay=250 cube
-
-digital_rain: strangeland
-	./strangeland digital_rain
+	rm -f main.o pty/*.o src/*.o src/demos/*.o strange strangeland foo

@@ -12,30 +12,22 @@ passage:
 
 Of course, a screensaver isn't necessary in most places today. Modern screens
 don't use technology that suffers from phosphor burn-in. Still, they are
-nostalgic and fun, so I wanted to bring them back.I often "turn on" something
-on my second monitor that is calming and visual. `strangeland` fits that role.
+nostalgic and fun, so I wanted to bring them back. I often "turn on" something
+on my second monitor that is calming and visual. `strange` fits that role.
 
-## Demos
+## Runtime
 
-A strangeland demo impelement three functions. An initialization function that
-runs once at startup and is useful for initializing global state, an update
-function that is run once per frame, and a cleanup function that runs on exit
-or `SIGTERM`. Return false from the update function to terminate the demo.
-Check out `src/render.h` for more info.
+`strange` is a PTY-backed terminal wrapper. Run it as the terminal session you
+want to monitor. It starts a child shell, forwards input and output during
+normal use, and activates a screensaver path after inactivity.
 
-Later, an actual plugin system would be nice (or scripting with a niche
-language I want to play with, like Janet or Chibi-Scheme). For this prototype
-demos have to be hard-coded in.
-
-* denabase: a DNA visualization inspired by Blade Runner 2049.
-* digital_rain: An homage to the digital rain from The Matrix and Ghost in the
-  Shell.
+The renderer code under `src/` is retained as implementation material for the
+next integration steps, but it is no longer presented as a supported standalone
+runtime.
 
 ## Building
 
-I provide a makefile for building that has targets for each scene. It also has
-debug and benchmark targets. Benchmarking compiles for `gprof` and is useful
-for identifying bottlenecks in your update function.
+Run `make` to build the supported `strange` binary.
 
 ## Similar Projects
 
