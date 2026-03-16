@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -12,6 +13,7 @@
 #include "screensaver.h"
 #include "state_machine.h"
 
+#define STRANGE_DISABLE_KEY 0x11
 #define STRANGE_POLL_INTERVAL_USEC 100000
 #define STRANGE_BUFFER_SIZE (1024 * 1024)
 
@@ -59,6 +61,68 @@ static int apply_transition_effects(
   }
 
   return 0;
+}
+
+static int handle_runtime_event(struct strange_state_machine *machine,
+                                enum strange_runtime_event event,
+                                const struct timespec *now) {
+  struct strange_state_transition transition =
+      strange_state_machine_handle_event(machine, event, now);
+  return apply_transition_effects(&transition, now);
+}
+
+static int forward_input_slice(struct strange_state_machine *machine,
+                               const char *buffer, size_t length,
+                               const struct timespec *now) {
+  if (length == 0) {
+    return 0;
+  }
+
+  if (handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_USER_INPUT, now) ==
+      -1) {
+    return -1;
+  }
+
+  if (write_all(master_fd, buffer, length) == -1) {
+    perror("write");
+    return -1;
+  }
+
+  return 0;
+}
+
+static int handle_stdin_buffer(struct strange_state_machine *machine,
+                               const char *buffer, size_t length,
+                               const struct timespec *now) {
+  if (machine->state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
+    enum strange_runtime_event event =
+        memchr(buffer, STRANGE_DISABLE_KEY, length) != NULL
+            ? STRANGE_RUNTIME_EVENT_DISABLE
+            : STRANGE_RUNTIME_EVENT_USER_INPUT;
+    return handle_runtime_event(machine, event, now);
+  }
+
+  size_t slice_start = 0;
+
+  for (size_t index = 0; index < length; ++index) {
+    if ((unsigned char)buffer[index] != STRANGE_DISABLE_KEY) {
+      continue;
+    }
+
+    if (forward_input_slice(machine, buffer + slice_start, index - slice_start,
+                            now) == -1) {
+      return -1;
+    }
+    if (handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_DISABLE, now) ==
+        -1) {
+      return -1;
+    }
+
+    slice_start = index + 1;
+  }
+
+  return forward_input_slice(machine, buffer + slice_start,
+                             length - slice_start, now);
 }
 
 static int sync_resize_if_needed(enum strange_runtime_state state,
@@ -130,19 +194,15 @@ int strange_run(const struct strange_options *options) {
     }
 
     if (strange_shutdown_requested()) {
-      struct strange_state_transition transition =
-          strange_state_machine_handle_event(
-              &machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
-      apply_transition_effects(&transition, &now);
+      handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
       break;
     }
 
     if (strange_state_machine_timeout_due(&machine, &now)) {
-      struct strange_state_transition transition =
-          strange_state_machine_handle_event(&machine,
-                                             STRANGE_RUNTIME_EVENT_TIMEOUT,
-                                             &now);
-      apply_transition_effects(&transition, &now);
+      if (handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_TIMEOUT, &now) ==
+          -1) {
+        goto cleanup;
+      }
     } else if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
       render_screensaver_frame(&now);
     }
@@ -172,25 +232,14 @@ int strange_run(const struct strange_options *options) {
     if (ready > 0 && FD_ISSET(STDIN_FILENO, &read_fds)) {
       ssize_t bytes = read(STDIN_FILENO, buffer, sizeof(buffer));
       if (bytes > 0) {
-        enum strange_runtime_state previous_state = machine.state;
         if (monotonic_now(&now) == -1) {
           goto cleanup;
         }
-        struct strange_state_transition transition =
-            strange_state_machine_handle_event(
-                &machine, STRANGE_RUNTIME_EVENT_USER_INPUT, &now);
-        apply_transition_effects(&transition, &now);
-
-        if (previous_state != STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
-            write_all(master_fd, buffer, (size_t)bytes) == -1) {
-          perror("write");
+        if (handle_stdin_buffer(&machine, buffer, (size_t)bytes, &now) == -1) {
           goto cleanup;
         }
       } else if (bytes == 0) {
-        struct strange_state_transition transition =
-            strange_state_machine_handle_event(
-                &machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
-        apply_transition_effects(&transition, &now);
+        handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
       } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
         perror("read");
         goto cleanup;
@@ -203,21 +252,17 @@ int strange_run(const struct strange_options *options) {
         if (monotonic_now(&now) == -1) {
           goto cleanup;
         }
-        struct strange_state_transition transition =
-            strange_state_machine_handle_event(&machine,
-                                               STRANGE_RUNTIME_EVENT_PTY_OUTPUT,
-                                               &now);
-        apply_transition_effects(&transition, &now);
+        if (handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_PTY_OUTPUT,
+                                 &now) == -1) {
+          goto cleanup;
+        }
 
         if (write_all(STDOUT_FILENO, buffer, (size_t)bytes) == -1) {
           perror("write");
           goto cleanup;
         }
       } else if (bytes == 0 || (bytes < 0 && errno == EIO)) {
-        struct strange_state_transition transition =
-            strange_state_machine_handle_event(
-                &machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
-        apply_transition_effects(&transition, &now);
+        handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
       } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
         perror("read");
         goto cleanup;
@@ -231,10 +276,7 @@ int strange_run(const struct strange_options *options) {
       goto cleanup;
     }
     if (shell_exited == 1) {
-      struct strange_state_transition transition =
-          strange_state_machine_handle_event(
-              &machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
-      apply_transition_effects(&transition, &now);
+      handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now);
       runtime_status = 0;
       break;
     }

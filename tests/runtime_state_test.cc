@@ -121,6 +121,58 @@ TEST(RuntimeStateMachineTest, ActivityLeavesScreensaverState) {
   EXPECT_EQ(machine.last_activity_at.tv_sec, wake_time.tv_sec);
 }
 
+TEST(RuntimeStateMachineTest,
+     DisableFromScreensaverLeavesScreensaverAndPreventsFutureTimeouts) {
+  strange_state_machine machine;
+  const timespec start = Seconds(0);
+  const timespec timeout_time = Seconds(3);
+  const timespec disable_time = Seconds(4);
+  const timespec long_after_disable = Seconds(100);
+
+  strange_state_machine_init(&machine, 3, &start);
+  strange_state_machine_handle_event(&machine, STRANGE_RUNTIME_EVENT_TIMEOUT,
+                                     &timeout_time);
+
+  const strange_state_transition transition = strange_state_machine_handle_event(
+      &machine, STRANGE_RUNTIME_EVENT_DISABLE, &disable_time);
+
+  EXPECT_EQ(transition.previous_state,
+            STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE);
+  EXPECT_EQ(transition.current_state,
+            STRANGE_RUNTIME_STATE_SCREENSAVER_DISABLED);
+  EXPECT_TRUE(transition.exited_screensaver);
+  EXPECT_FALSE(strange_state_machine_timeout_due(&machine, &long_after_disable));
+}
+
+TEST(RuntimeStateMachineTest,
+     DisableStateIgnoresFurtherActivityAndStaysDisabled) {
+  strange_state_machine machine;
+  const timespec start = Seconds(10);
+  const timespec disable_time = Seconds(15);
+  const timespec input_time = Seconds(16);
+  const timespec output_time = Seconds(17);
+
+  strange_state_machine_init(&machine, 30, &start);
+  strange_state_machine_handle_event(&machine, STRANGE_RUNTIME_EVENT_DISABLE,
+                                     &disable_time);
+
+  const strange_state_transition input_transition =
+      strange_state_machine_handle_event(&machine,
+                                         STRANGE_RUNTIME_EVENT_USER_INPUT,
+                                         &input_time);
+  EXPECT_EQ(input_transition.current_state,
+            STRANGE_RUNTIME_STATE_SCREENSAVER_DISABLED);
+  EXPECT_TRUE(input_transition.recorded_activity);
+
+  const strange_state_transition output_transition =
+      strange_state_machine_handle_event(&machine,
+                                         STRANGE_RUNTIME_EVENT_PTY_OUTPUT,
+                                         &output_time);
+  EXPECT_EQ(output_transition.current_state,
+            STRANGE_RUNTIME_STATE_SCREENSAVER_DISABLED);
+  EXPECT_TRUE(output_transition.recorded_activity);
+}
+
 TEST(RuntimeStateMachineTest, DisableAndShutdownStatesRemainExplicit) {
   strange_state_machine machine;
   const timespec start = Seconds(5);
