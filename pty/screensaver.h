@@ -1,15 +1,12 @@
+#ifndef STRANGE_SCREENSAVER_H_
+#define STRANGE_SCREENSAVER_H_
 
-// Basic screensaver functions
-void start_screensaver(void);
-void stop_screensaver(void);
+#include <time.h>
 
-// Terminal mode functions
 void enable_raw_mode(void);
 void disable_raw_mode(void);
+void enter_screensaver(void);
+void leave_screensaver(void);
+void render_screensaver_frame(const struct timespec *now);
 
-// PTY screensaver functions
-int run_screensaver_loop(void);
-void set_screensaver_timeout(int seconds);
-int get_screensaver_timeout(void);
-void reset_activity_timer(void);
-int check_screensaver_timeout(void);
+#endif

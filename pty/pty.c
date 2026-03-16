@@ -17,6 +17,7 @@ int master_fd = -1;
 pid_t shell_pid = -1;
 
 static volatile sig_atomic_t shutdown_requested = 0;
+static volatile sig_atomic_t resize_requested = 0;
 static int shell_status_ready = 0;
 static int last_shell_status = 0;
 
@@ -25,10 +26,15 @@ static void request_shutdown(int sig) {
   shutdown_requested = 1;
 }
 
-static int install_signal_handler(int signo) {
+static void request_resize(int sig) {
+  (void)sig;
+  resize_requested = 1;
+}
+
+static int install_signal_handler(int signo, void (*handler)(int)) {
   struct sigaction action;
   memset(&action, 0, sizeof(action));
-  action.sa_handler = request_shutdown;
+  action.sa_handler = handler;
 
   if (sigemptyset(&action.sa_mask) == -1) {
     return -1;
@@ -38,13 +44,16 @@ static int install_signal_handler(int signo) {
 }
 
 static int install_signal_handlers(void) {
-  if (install_signal_handler(SIGINT) == -1) {
+  if (install_signal_handler(SIGINT, request_shutdown) == -1) {
     return -1;
   }
-  if (install_signal_handler(SIGTERM) == -1) {
+  if (install_signal_handler(SIGTERM, request_shutdown) == -1) {
     return -1;
   }
-  if (install_signal_handler(SIGHUP) == -1) {
+  if (install_signal_handler(SIGHUP, request_shutdown) == -1) {
+    return -1;
+  }
+  if (install_signal_handler(SIGWINCH, request_resize) == -1) {
     return -1;
   }
 
@@ -148,6 +157,29 @@ int strange_shutdown_requested(void) {
   return shutdown_requested != 0;
 }
 
+int strange_consume_resize_event(void) {
+  if (!resize_requested) {
+    return 0;
+  }
+
+  resize_requested = 0;
+  return 1;
+}
+
+int strange_sync_pty_window_size(void) {
+  struct winsize terminal_size;
+
+  if (master_fd < 0) {
+    errno = EBADF;
+    return -1;
+  }
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size) == -1) {
+    return -1;
+  }
+
+  return ioctl(master_fd, TIOCSWINSZ, &terminal_size);
+}
+
 int poll_shell_exit(int *status) {
   int wait_status = 0;
 
@@ -237,6 +269,7 @@ int setup_pty_and_shell(void) {
   const char *shell_path = resolve_shell_path();
 
   shutdown_requested = 0;
+  resize_requested = 0;
   shell_status_ready = 0;
   last_shell_status = 0;
 
