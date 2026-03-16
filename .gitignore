@@ -1,3 +1,7 @@
+# Context
+*.md
+ralph.sh
+
 # Prerequisites
 *.d
 
@@ -53,4 +57,3 @@ dkms.conf
 
 # IDE things
 .vscode/
-
