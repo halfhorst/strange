@@ -3,10 +3,14 @@
 
 #include <time.h>
 
+#include "src/screensaver_registry.h"
+
 void enable_raw_mode(void);
 void disable_raw_mode(void);
-void enter_screensaver(void);
+int strange_set_screensaver_descriptor(
+    const struct strange_screensaver_descriptor *descriptor);
+int enter_screensaver(void);
 void leave_screensaver(void);
-void render_screensaver_frame(const struct timespec *now);
+int render_screensaver_frame(const struct timespec *now);
 
 #endif

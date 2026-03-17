@@ -1,3 +1,8 @@
+#ifndef STRANGE_WATERMARK_H_
+#define STRANGE_WATERMARK_H_
 
-void display_watermark(void);
-void display_exit_instructions(void);
+struct ScreenBuffer;
+
+void render_screensaver_watermark(struct ScreenBuffer *buffer);
+
+#endif
