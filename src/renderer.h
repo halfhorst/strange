@@ -1,38 +1,4 @@
-/*
-  The strangeland rendering "engine."
-
-  This takes the form of a single function that performs the actual terminal
-  rendering. It is supplied with three functions that define the demo to be
-  rendered
-
-  void ss_init(screen_buffer)
-    An initialization function run once before rendering. Generally, allocate
-    what you need here to global state.
-
-  bool ss_update(screen_buffer, frame_count)
-    The update function, run once each frame followed by a draw to the
-    terminal. The current frame count is passed in as an argument, and the
-    screenbuffer contains the terminals current dimensions, which may have
-    changed. The function returns a boolean that dictates whether rendering
-    continues or not. This is where you modify the screen buffer for rendering.
-
-  void ss_cleanup(void)
-    A cleanup function, run once after rendering stops or on SIGINT or SIGKILL.
-
-  The rendering lifecycle is simple. Initially the window size is collected,
-  signal handlers are allocated, and the tty is prepared. This preparation
-  entails preparing to termios structures, one with current tty settings and
-  the other with modifications. Then the screen buffer is allocated and ss_init
-  is called.
-
-  Next, rendering begins in a loop. The window is checked for resizing and
-  a new buffer is allocated if this has occurred. Then the update function is
-  called, the screen buffer is printed to the terminal, and the process sleeps
-  until a duration is satisfied.
-
-  On SIGINT, SIGKILL or ss_update returning false, cleanup takes place.
-*/
-#include <stdbool.h>
+#include <stdio.h>
 
 #ifndef RENDERER_H_
 #define RENDERER_H_
@@ -52,23 +18,26 @@ struct ScreenBuffer {
   int character_width;  // the number of characters reserved for each (x, y)
 };
 
-/*
-  The main render loop. `ss_init`, `ss_update`, and `ss_cleanup` should be
-  provided to do initialization, screen buffering, and cleanup.
+struct strange_render_context {
+  struct ScreenBuffer buffer;
+  int terminal_fd;
+  FILE *stream;
+  unsigned long frame_count;
+};
 
-  `character_width` is the number of characters to allot for each visible
-  character on the screen. Fixed-width characters are important for constant
-  time lookup, but support for UTF-8 is important as well. We let each demo
-  decide what it wants, but it must be fixed.
-
-  `delay` is a duration in ms to wait after each update.
-*/
-int render(void (*ss_init)(struct ScreenBuffer *buffer),
-           bool (*ss_update)(struct ScreenBuffer *buffer,
-                             unsigned long frame_count),
-           void (*ss_cleanup)(void),
-           int character_width,
-           int delay);
+int strange_get_terminal_size(int fd, int *w, int *h);
+int strange_screen_buffer_init(struct ScreenBuffer *buffer, int w, int h,
+                               int character_width);
+int strange_screen_buffer_resize(struct ScreenBuffer *buffer, int w, int h);
+void strange_screen_buffer_free(struct ScreenBuffer *buffer);
+void strange_screen_buffer_clear(struct ScreenBuffer *buffer);
+int strange_render_context_init(struct strange_render_context *context,
+                                int terminal_fd, FILE *stream,
+                                int character_width);
+int strange_render_context_refresh_size(struct strange_render_context *context);
+void strange_render_context_begin_frame(struct strange_render_context *context);
+int strange_render_context_present(struct strange_render_context *context);
+void strange_render_context_destroy(struct strange_render_context *context);
 
 /*
   Write `num_chars` from `chars` to the screen at (x, y), where the origin is
@@ -81,7 +50,9 @@ int render(void (*ss_init)(struct ScreenBuffer *buffer),
 
   This function does no bounds checking at all, that is up to the caller.
 */
-void write_to_buffer(struct ScreenBuffer *sbuffer, char *chars, int num_chars,
-                     int x, int y);
+void write_to_buffer(struct ScreenBuffer *sbuffer, const char *chars,
+                     int num_chars, int x, int y);
+void write_string_to_buffer(struct ScreenBuffer *sbuffer, const char *text,
+                            int x, int y);
 
 #endif  // RENDERER_H_
