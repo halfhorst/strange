@@ -1,10 +1,8 @@
+#include <errno.h>
 #include <stdlib.h>
-#include <time.h>
 #include <math.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
-#include <stdio.h>
 
 #include "../renderer.h"
 #include "./denabase.h"
@@ -42,91 +40,133 @@ struct DnaSequence {
   char *sequence;
   char *complement;
   size_t capacity;
-  char *name;
+  const char *name;
 };
 
-struct DnaSequence *allocate_dna_sequence(char *name);
-void update_helix(double radius, double pitch, double x_shift, double y_shift,
-                  struct Helix *helix);
-void compute_helix_coord(double t, struct Helix *helix, struct Coord *coord);
-void check_failed_alloc(void *ptr);
-void generate_random_sequence(int capacity, bool isDNA, char *sequence_buffer);
-void get_sequence_complement(char *sequence, int capacity, bool isDNA,
-                             char *complement_buffer);
-char get_complement(char nucleotide, bool isDNA);
-bool draw_helix(struct ScreenBuffer *sbuffer, unsigned long frame_count,
-                int t_min, int t_max);
-void draw_linkage(struct ScreenBuffer *sbuffer, int min_x, int max_x, int y,
-                  int sequence_index);
-void draw_nucleic_acid_block(struct ScreenBuffer *sbuffer, int seq_index);
+struct denabase_state {
+  struct Helix strand_1;
+  struct Helix strand_2;
+  struct DnaSequence dna_sequence;
+  int block_sequence_index;
+};
 
-// Global state
-static struct Helix *strand_1;
-static struct Helix *strand_2;
-static struct DnaSequence *dna_sequence;
-static int block_sequence_index;
+static int allocate_dna_sequence(struct DnaSequence *dna);
+static void free_dna_sequence(struct DnaSequence *dna);
+static void update_helix(double radius, double pitch, double x_shift,
+                         double y_shift, struct Helix *helix);
+static void compute_helix_coord(double t, const struct Helix *helix,
+                                struct Coord *coord);
+static int generate_random_sequence(size_t capacity, bool is_dna,
+                                    char *sequence_buffer);
+static void get_sequence_complement(const char *sequence, size_t capacity,
+                                    bool is_dna, char *complement_buffer);
+static char get_complement(char nucleotide, bool is_dna);
+static int draw_helix(struct denabase_state *state, struct ScreenBuffer *buffer,
+                      int t_min, int t_max);
+static void draw_nucleic_acid_block(struct denabase_state *state,
+                                    struct ScreenBuffer *buffer,
+                                    int seq_index);
 
-void denabase_init(struct ScreenBuffer *sbuffer) {
-  dna_sequence = allocate_dna_sequence("IDENT: #09817");
+static int denabase_init(void **state, struct ScreenBuffer *buffer) {
+  struct denabase_state *denabase = NULL;
   bool isDNA = true;
-  generate_random_sequence(dna_sequence->capacity, isDNA, dna_sequence->sequence);
-  get_sequence_complement(dna_sequence->sequence, dna_sequence->capacity,
-                          isDNA, dna_sequence->complement);
 
-  strand_1 = malloc(sizeof(struct Helix));
-  check_failed_alloc(strand_1);
-  strand_1->marker = '0';
+  (void)buffer;
+  if (state == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
 
-  strand_2 = malloc(sizeof(struct Helix));
-  check_failed_alloc(strand_2);
-  strand_2->marker = '0';
+  denabase = calloc(1, sizeof(*denabase));
+  if (denabase == NULL) {
+    return -1;
+  }
+  if (allocate_dna_sequence(&denabase->dna_sequence) == -1 ||
+      generate_random_sequence(denabase->dna_sequence.capacity, isDNA,
+                               denabase->dna_sequence.sequence) == -1) {
+    free_dna_sequence(&denabase->dna_sequence);
+    free(denabase);
+    return -1;
+  }
+  get_sequence_complement(denabase->dna_sequence.sequence,
+                          denabase->dna_sequence.capacity, isDNA,
+                          denabase->dna_sequence.complement);
 
-  block_sequence_index = 0;
+  denabase->strand_1.marker = '0';
+  denabase->strand_2.marker = '0';
+  denabase->block_sequence_index = 0;
+  *state = denabase;
+  return 0;
 }
 
-struct DnaSequence *allocate_dna_sequence(char *name) {
-  struct DnaSequence *dna = malloc(sizeof(struct DnaSequence));
-  check_failed_alloc(dna);
+static int allocate_dna_sequence(struct DnaSequence *dna) {
+  if (dna == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
 
+  memset(dna, 0, sizeof(*dna));
   dna->sequence = malloc(sizeof(char) * SEQUENCE_BUFFER_SIZE);
-  check_failed_alloc(dna->sequence);
-
+  if (dna->sequence == NULL) {
+    return -1;
+  }
   dna->complement = malloc(sizeof(char) * SEQUENCE_BUFFER_SIZE);
-  check_failed_alloc(dna->complement);
+  if (dna->complement == NULL) {
+    free(dna->sequence);
+    dna->sequence = NULL;
+    return -1;
+  }
 
   dna->capacity = SEQUENCE_BUFFER_SIZE;
   dna->name = "IDENT #09817 (H. sapiens)";
-
-  return dna;
+  return 0;
 }
 
-void denabase_cleanup(void) {
-  free(dna_sequence->sequence);
-  free(dna_sequence->complement);
-  free(dna_sequence);
-  free(strand_1);
-  free(strand_2);
+static void free_dna_sequence(struct DnaSequence *dna) {
+  if (dna == NULL) {
+    return;
+  }
+
+  free(dna->sequence);
+  free(dna->complement);
+  dna->sequence = NULL;
+  dna->complement = NULL;
+  dna->capacity = 0;
+  dna->name = NULL;
 }
 
-bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count) {
-  bool isDNA = true;
+static int denabase_update(
+    void *state, struct ScreenBuffer *sbuffer,
+    const struct strange_screensaver_frame *frame) {
+  struct denabase_state *denabase = state;
+  unsigned long frame_count = 0;
   int helix_center = sbuffer->w * 0.75;
+  double y_shift = 0.0;
 
-  float y_shift = strand_1->y_shift;
+  if (denabase == NULL || sbuffer == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (frame != NULL) {
+    frame_count = frame->frame_count;
+  }
+
+  y_shift = denabase->strand_1.y_shift;
   if ((frame_count % HELIX_SCROLL_SPEED) == 0) {
     y_shift--;
   }
   update_helix(STRAND_RADIUS, STRAND_PITCH, helix_center,
-               y_shift, strand_1);
+               y_shift, &denabase->strand_1);
   update_helix(-STRAND_RADIUS, STRAND_PITCH, helix_center,
-               y_shift + STRAND_OFFSET, strand_2);
+               y_shift + STRAND_OFFSET, &denabase->strand_2);
 
   // Calculate the range of t that covers the display.
   // We assume strand 2 is shifted up in y, and so has
   // a strictly greater y-shift. Unequal pitch would
   // wreck this.
-  int t_min = ((-strand_2->y_shift) / strand_2->pitch);
-  int t_max = ((sbuffer->h - strand_1->y_shift) / strand_1->pitch);
+  int t_min = ((-denabase->strand_2.y_shift) / denabase->strand_2.pitch);
+  int t_max =
+      ((sbuffer->h - denabase->strand_1.y_shift) / denabase->strand_1.pitch);
 
   // t min to to max defines a set of linkages
   // t % linkage_param defines where a linkage is
@@ -146,13 +186,32 @@ bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count) {
   // int helix_sequence_index = t_index + ((sbuffer->w / 2) - 3) * (sbuffer->h / 2);
 
   // draw the helix from t_min to t_max
-  draw_helix(sbuffer, frame_count, t_min, t_max);
+  draw_helix(denabase, sbuffer, t_min, t_max);
 
   // draw the nucleic acid block
-  draw_nucleic_acid_block(sbuffer, block_sequence_index);
+  draw_nucleic_acid_block(denabase, sbuffer, denabase->block_sequence_index);
 
-  return true;
+  return 0;
 }
+
+static void denabase_cleanup(void *state) {
+  struct denabase_state *denabase = state;
+
+  if (denabase == NULL) {
+    return;
+  }
+
+  free_dna_sequence(&denabase->dna_sequence);
+  free(denabase);
+}
+
+const struct strange_screensaver_descriptor strange_denabase_descriptor = {
+    .name = "denabase",
+    .character_width = DENABASE_CHAR_WIDTH,
+    .init = denabase_init,
+    .update = denabase_update,
+    .cleanup = denabase_cleanup,
+};
 
 /*
   Draw a helix in the center of the right half of the window defined by
@@ -160,12 +219,13 @@ bool denabase_update(struct ScreenBuffer *sbuffer, unsigned long frame_count) {
   necessary to cover the window is calculated, and the helix is shifted
   by offsetting t by time or frame count.
 */
-bool draw_helix(struct ScreenBuffer *sbuffer, unsigned long frame_count,
-                int t_min, int t_max) {
-
+static int draw_helix(struct denabase_state *state, struct ScreenBuffer *sbuffer,
+                      int t_min, int t_max) {
   float t_resolution = 10;
   struct Coord s1_coord, s2_coord;
-  int linkage_counter = 0;
+  const struct Helix *strand_1 = &state->strand_1;
+  const struct Helix *strand_2 = &state->strand_2;
+
   for (int t_fine = (t_min * t_resolution);
        t_fine <= (t_max * t_resolution); t_fine++) {
     // we calculated a range to cover the display. We want to draw the
@@ -179,12 +239,12 @@ bool draw_helix(struct ScreenBuffer *sbuffer, unsigned long frame_count,
                                / STRAND_PITCH);
 
     compute_helix_coord(param_1, strand_1, &s1_coord);
-    if ((s1_coord.y > 0) & (s1_coord.y < sbuffer->h)) {
+    if ((s1_coord.y > 0) && (s1_coord.y < sbuffer->h)) {
       write_to_buffer(sbuffer, &strand_1->marker, 1, s1_coord.x, s1_coord.y);
     }
 
     compute_helix_coord(param_2, strand_2, &s2_coord);
-    if ((s2_coord.y > 0) & (s2_coord.y < sbuffer->h)) {
+    if ((s2_coord.y > 0) && (s2_coord.y < sbuffer->h)) {
       write_to_buffer(sbuffer, &strand_2->marker, 1, s2_coord.x, s2_coord.y);
     }
 
@@ -206,30 +266,13 @@ bool draw_helix(struct ScreenBuffer *sbuffer, unsigned long frame_count,
     //   linkage_counter++;
     // }
   }
-  return true;
-}
-
-void draw_linkage(struct ScreenBuffer *sbuffer, int min_x, int max_x, int y,
-                  int sequence_index) {
-    // the sequence index has to be tied to the parameter, t
-    char base = dna_sequence->sequence[sequence_index];
-    char complement = dna_sequence->complement[sequence_index];
-    char linkage = '=';
-    for (int i = min_x + 1; i < max_x; i++) {
-      write_to_buffer(sbuffer, &linkage, 1, i, y);
-    }
-
-    int midpoint = min_x + ((max_x - min_x) / 2);
-    char h_bond = '-';
-    write_to_buffer(sbuffer, &base, 1, midpoint - 1, y);
-    write_to_buffer(sbuffer, &h_bond, 1, midpoint, y);
-    write_to_buffer(sbuffer, &complement, 1, midpoint + 1, y);
+  return 0;
 }
 
 
 /* Update `helix` with the parameters provided. */
-void update_helix(double radius, double pitch, double x_shift, double y_shift,
-                  struct Helix *helix) {
+static void update_helix(double radius, double pitch, double x_shift,
+                         double y_shift, struct Helix *helix) {
   helix->radius = radius;
   helix->pitch = pitch;
   helix->x_shift = x_shift;
@@ -237,22 +280,29 @@ void update_helix(double radius, double pitch, double x_shift, double y_shift,
 }
 
 /* Compute the (x, y) coordinates of the helix at parameter `t`. */
-void compute_helix_coord(double t, struct Helix *helix, struct Coord *coord) {
+static void compute_helix_coord(double t, const struct Helix *helix,
+                                struct Coord *coord) {
   int x = (helix->radius * cos(t)) + helix->x_shift;
   int y = (helix->pitch * t) + helix->y_shift;
   coord->x = x;
   coord->y = y;
 }
 
-void generate_random_sequence(int capacity, bool isDNA, char *sequence_buffer) {
+static int generate_random_sequence(size_t capacity, bool isDNA,
+                                    char *sequence_buffer) {
   /*  G-C
       A-T/U
       humans are roughly 30% AT and 20% GC
   */
 
+  if (sequence_buffer == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
   int rand_int;
   float selection;
-  for (int i = 0; i < capacity; i++) {
+  for (size_t i = 0; i < capacity; i++) {
     rand_int = rand();
     selection = (float) rand_int / RAND_MAX;
     if (selection < 0.2) {
@@ -269,15 +319,18 @@ void generate_random_sequence(int capacity, bool isDNA, char *sequence_buffer) {
       }
     }
   }
+
+  return 0;
 }
 
-void get_sequence_complement(char *sequence, int capacity, bool isDNA, char *complement_buffer) {
-  for (int i = 0; i < capacity; i++) {
+static void get_sequence_complement(const char *sequence, size_t capacity,
+                                    bool isDNA, char *complement_buffer) {
+  for (size_t i = 0; i < capacity; i++) {
     complement_buffer[i] = get_complement(sequence[i], isDNA);
   }
 }
 
-char get_complement(char nucleotide, bool isDNA) {
+static char get_complement(char nucleotide, bool isDNA) {
   switch (nucleotide) {
     case 'A':
       if (isDNA) {
@@ -299,7 +352,9 @@ char get_complement(char nucleotide, bool isDNA) {
 }
 
 // // fill the DNA block starting at sequence->current
-void draw_nucleic_acid_block(struct ScreenBuffer *sbuffer, int seq_index) {
+static void draw_nucleic_acid_block(struct denabase_state *state,
+                                    struct ScreenBuffer *sbuffer,
+                                    int seq_index) {
   int window_middle = sbuffer->w / 2;
   int num_bases_per_row = window_middle - 3;
   int focus_row = sbuffer->h / 2;
@@ -325,14 +380,14 @@ void draw_nucleic_acid_block(struct ScreenBuffer *sbuffer, int seq_index) {
   memset(sbuffer->buffer + ((sbuffer->h - 1) * sbuffer->w) + 1, bottom_border, window_middle - 1);
 
   // print the name seqence
-  memcpy(sbuffer->buffer + (sbuffer->w) + 2, dna_sequence->name,
-         strlen(dna_sequence->name));
+  memcpy(sbuffer->buffer + (sbuffer->w) + 2, state->dna_sequence.name,
+         strlen(state->dna_sequence.name));
 
   // copy by row. padding for border and a space is given
   // TODO: This indexing is off by one I think
   for (int i = 2; i < sbuffer->h - 1; i++) {
     memcpy(sbuffer->buffer + (i * sbuffer->w) + 2,
-           (dna_sequence->sequence + seq_index) + (i * num_bases_per_row),
+           (state->dna_sequence.sequence + seq_index) + (i * num_bases_per_row),
            window_middle - 3);
   }
 
@@ -341,13 +396,4 @@ void draw_nucleic_acid_block(struct ScreenBuffer *sbuffer, int seq_index) {
          SL_SPACE_CHAR, window_middle - 1);
   memset(sbuffer->buffer + ((focus_row + 1) * sbuffer->w) + 1,
          SL_SPACE_CHAR, window_middle - 1);
-}
-
-// TODO: needs to be better handling.
-// this could leave stuff hanging around.
-void check_failed_alloc(void *ptr) {
-  if (ptr == NULL) {
-    fprintf(stderr, "Failed to allocate memory.");
-    exit(EXIT_FAILURE);
-  }
 }
