@@ -1,0 +1,90 @@
+## 2026-03-15 22:02:10 PDT - Q03
+- Replaced the nested PTY/screensaver timeout loop with an explicit runtime state machine, added resize tracking in the PTY layer, and made screensaver rendering enter/leave frame-based so runtime state transitions own activation.
+- Files changed: `Makefile`, `pty/pty.c`, `pty/pty.h`, `pty/runtime.c`, `pty/screensaver.c`, `pty/screensaver.h`, `pty/state_machine.c`, `pty/state_machine.h`, `tests/runtime_state_test.cc`, `IMPLEMENTATION_PLAN.md`, `AGENTS.md`, `progress.txt`
+- Tests run: `make`, `make test`
+- **Learnings for future iterations:**
+    - Keep transition rules in a pure module and drive PTY/render side effects from transition results; it makes the interactive runtime testable without booting a shell session.
+    - Resize handling belongs in the PTY layer as a pending signal plus an explicit sync call so runtime can observe size changes without treating them as user activity.
+    - GoogleTest is available from Homebrew at `/opt/homebrew/opt/googletest`, and this repo should link to that prefix directly because `pkg-config` is not installed here.
+---
+## 2026-03-15 22:33:29 PDT - Q04
+- Implemented stdin interception in the PTY runtime so `Ctrl-Q` is swallowed and mapped to the disable transition in passthrough, disabled, and screensaver states; regular wake input still dismisses the screensaver without forwarding the wake key.
+- Files changed: `pty/runtime.c`, `pty/watermark.c`, `pty/watermark.h`, `tests/runtime_state_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `make`, `make test`
+- **Learnings for future iterations:**
+    - Byte-level stdin routing is the right place to reserve control chords globally; the state machine should stay responsible for mode transitions, not raw input parsing.
+    - Swallow the full read buffer when waking or disabling from the active screensaver so buffered wake input never leaks through to the child PTY.
+    - Keep the on-screen screensaver instructions aligned with runtime behavior; stale watermark text is easy to miss when transition logic changes.
+---
+## 2026-03-15 22:40:18 PDT - Q05
+- Replaced the old standalone renderer loop with a reusable render core that owns screen-buffer allocation, clearing, resize refresh, and frame presentation, and moved the PTY screensaver to render through that shared context.
+- Files changed: `AGENTS.md`, `Makefile`, `pty/runtime.c`, `pty/screensaver.c`, `pty/screensaver.h`, `pty/watermark.c`, `pty/watermark.h`, `src/renderer.c`, `src/renderer.h`, `tests/renderer_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `make`, `make test`, `./runtime_state_test '--gtest_filter=RendererCoreTest.*'`
+- **Learnings for future iterations:**
+    - Keep terminal drawing code inside the shared renderer layer and have screensavers render scenes plus overlays into the same `ScreenBuffer`; that keeps PTY/runtime control flow separate from drawing details.
+    - A runtime-owned render context with explicit `refresh_size`, `begin_frame`, and `present` steps is a better fit than a self-contained render loop because the state machine decides when frames should exist.
+    - Watermarks and other UI chrome should be buffer overlays, not direct `stdout` writes, so future built-in, Lua, and dynamic screensavers share one composition path.
+---
+## 2026-03-15 22:45:31 PDT - Q06
+- Added a shared screensaver descriptor API with lifecycle callbacks, defaulted optional character width metadata, documented the native symbol and Lua table field contracts, and registered a built-in placeholder screensaver through the new registry.
+- Files changed: `Makefile`, `src/screensaver_registry.c`, `src/screensaver_registry.h`, `tests/screensaver_registry_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `./runtime_state_test '--gtest_filter=ScreensaverRegistryTest.*'`, `make`, `make test`
+- **Learnings for future iterations:**
+    - Keep the descriptor contract minimal: `name` is the only required metadata, while optional lifecycle hooks and `character_width` let built-in, Lua, and native loaders share one shape without forcing every implementation into the same allocation model.
+    - A small instance wrapper around descriptor callbacks is enough to give future runtime and loader work a common init/update/cleanup path without coupling the registry layer to PTY control flow.
+    - Define dynamic-loader symbol names and Lua field keys in one header now so later registry, loader, and CLI work reuses the same contract instead of re-encoding string literals.
+---
+## 2026-03-16 00:07:10 PDT - Q07
+- Ported `digital_rain` onto the shared descriptor API, registered it as a built-in, and replaced the PTY screensaver placeholder path with descriptor-instance rendering so the runtime state machine now drives the selected built-in scene frame-by-frame.
+- Files changed: `AGENTS.md`, `Makefile`, `main.c`, `pty/runtime.c`, `pty/runtime.h`, `pty/screensaver.c`, `pty/screensaver.h`, `src/demos/digital_rain.c`, `src/demos/digital_rain.h`, `src/screensaver_registry.c`, `tests/screensaver_registry_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `make`, `make test`, `./strange --help`, `script -q /dev/null ./strange --timeout 1 nope`, `python3` PTY smoke test for `./strange --timeout 1 digital_rain`
+- **Learnings for future iterations:**
+    - Keep PTY screensaver selection as a configured descriptor pointer; runtime can stay agnostic to whether the implementation is built-in, Lua, or dynamically loaded.
+    - Multibyte scenes like `digital_rain` should own their per-instance state instead of using globals, otherwise repeated enter/leave cycles will leak state across activations.
+    - PTY smoke tests need an explicit window size, and captured terminal output should have `\\0` padding stripped before asserting watermark text from multibyte render buffers.
+---
+## 2026-03-16 00:59:33 PDT - Q08
+- Replaced alternate-screen entry/exit with a Strange-owned visible-screen tracker that records PTY output, captures a visible snapshot on screensaver activation, restores it on wake, and ignores same-size resize signals so active snapshots are only discarded on a real size change.
+- Files changed: `AGENTS.md`, `Makefile`, `pty/runtime.c`, `pty/screensaver.c`, `pty/visible_screen.c`, `pty/visible_screen.h`, `tests/visible_screen_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `make`, `make test`
+- **Learnings for future iterations:**
+    - Keep visible-screen state separate from screensaver rendering: PTY output should update a live tracker continuously, while screensaver enter/leave only captures and replays snapshots.
+    - Treat `SIGWINCH` as advisory and compare dimensions before invalidating saved content; duplicate same-size resize signals are easy to trigger in PTY-driven tests.
+    - For restore behavior, shell-transcript unit tests are more reliable in this sandbox than full login-shell PTY smoke tests, which can fail for environment-specific reasons outside Strange.
+---
+## 2026-03-16 01:06:09 PDT - Q09
+- Ported `denabase` to the shared descriptor lifecycle with instance-owned state, removed the temporary placeholder from the built-in registry, and exposed the real built-in set as `denabase` plus `digital_rain` for CLI selection.
+- Files changed: `AGENTS.md`, `Makefile`, `src/demos/denabase.c`, `src/demos/denabase.h`, `src/screensaver_registry.c`, `tests/screensaver_registry_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `make runtime_state_test`, `./runtime_state_test '--gtest_filter=ScreensaverRegistryTest.*'`, `make test`, `make`, `python3` PTY smoke test for `./strange --timeout 1 denabase`
+- **Learnings for future iterations:**
+    - Built-in screensavers need descriptor-owned heap state rather than file-scope globals so repeated activate/deactivate cycles do not leak or cross-contaminate scene state.
+    - Keep the built-in registry limited to actual shipped demos; temporary placeholders obscure CLI behavior and weaken name-resolution coverage.
+    - PTY smoke tests for scene selection are reliable when they assert startup/activation with an explicit window size and treat PTY teardown separately from the runtime path being exercised.
+---
+## 2026-03-16 01:12:10 PDT - Q10
+- Replaced the ad hoc `main` argument handling with a shared CLI parser that supports named startup, `--random`, `--timeout`, `--list`, and help while rejecting unsupported combinations and extra arguments with explicit error messages.
+- Files changed: `Makefile`, `main.c`, `pty/runtime.c`, `pty/runtime.h`, `src/cli.c`, `src/cli.h`, `tests/cli_test.cc`, `IMPLEMENTATION_PLAN.md`, `progress.txt`
+- Tests run: `make runtime_state_test`, `./runtime_state_test '--gtest_filter=CliTest.*'`, `make strange`, `make test`, `./strange --help`, `./strange --list`, `./strange --timeout 0 denabase`
+- **Learnings for future iterations:**
+    - Keep CLI parsing and screensaver resolution in a dedicated module so startup syntax, validation, and future registry expansion stay testable without booting the PTY runtime.
+    - Enforce the exact supported command forms in the parser instead of accepting loosely compatible flag mixes; that keeps later discovery and loader work from inheriting ambiguous startup behavior.
+    - Built-in-only `--list` and `--random` handling provides a stable command surface now, and Q11/Q12/Q13 can extend the same parser and resolver paths to user-provided artifacts without reshaping `main`.
+---
+## 2026-03-16 01:19:16 PDT - Q11
+- Added a unified screensaver catalog that discovers direct child artifacts under `~/.strange/`, classifies `.lua` and platform-native files, preserves built-ins, and resolves names with user-over-builtin precedence while rejecting same-name Lua/native user collisions.
+- Files changed: `AGENTS.md`, `IMPLEMENTATION_PLAN.md`, `progress.txt`, `src/cli.c`, `src/screensaver_registry.c`, `src/screensaver_registry.h`, `tests/cli_test.cc`, `tests/screensaver_registry_test.cc`
+- Tests run: `make runtime_state_test`, `./runtime_state_test '--gtest_filter=CliTest.*:ScreensaverRegistryTest.*'`, `make test`, `make strange`, `./strange --list`
+- **Learnings for future iterations:**
+    - Keep discovery as a registry-layer concern: CLI and future loaders can share one HOME-scoped catalog instead of reimplementing name resolution rules.
+    - Preserve built-in and user entries in the catalog at the same time, then resolve by searching from the end; that gives user overrides without hiding the built-in inventory needed for `--list`.
+    - `~/.strange/` tests should override `HOME` to a repo-local temporary directory so discovery coverage stays hermetic and does not depend on the developer's real config.
+---
+## 2026-03-16 01:23:31 PDT - Q12
+- Implemented discovery-backed `--list` output so it prints built-in and user-provided screensavers in separate sections using the shared catalog, without attempting to load or validate user artifacts.
+- Files changed: `IMPLEMENTATION_PLAN.md`, `main.c`, `progress.txt`, `src/cli.c`, `src/cli.h`, `tests/cli_test.cc`
+- Tests run: `make runtime_state_test`, `./runtime_state_test '--gtest_filter=CliTest.*'`, `make test`, `make strange`, `HOME="$(mktemp -d /tmp/strange-list-home.XXXXXX)"` smoke check for `./strange --list` with a repo-external temp `~/.strange/custom.lua`
+- **Learnings for future iterations:**
+    - Keep `--list` on the catalog/discovery path instead of the loader path so incomplete runtime support for Lua or native plugins does not block inventory output.
+    - Coverage for CLI listing is easiest with a temporary `FILE *` capture helper plus a HOME override, which verifies sectioned output without spawning a PTY session.
+    - Manual CLI checks should rebuild the `strange` binary explicitly; `make test` only verifies the test binary and can leave a stale executable on disk.
+---
