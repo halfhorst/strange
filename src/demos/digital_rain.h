@@ -27,23 +27,13 @@
 
   TODO: Consider trying to switch to row-oriented memory copies
 */
+#include "../screensaver_registry.h"
+
 #ifndef DIGITAL_RAIN_H_
 #define DIGITAL_RAIN_H_
 
-#include <stdbool.h>
-#include <stdint.h>
-
-#include "renderer.h"
-
-/*
-  We render fixed-width katakana. 3 bytes are needed for the UTF-8
-  representation.
-*/
 #define DIGITAL_RAIN_CHAR_WIDTH 3
 
-void digital_rain_init(void);
-bool digital_rain_update(struct ScreenBuffer* buffer, uint64_t time,
-                         uint32_t dt);
-void digital_rain_cleanup(void);
+extern const struct strange_screensaver_descriptor strange_digital_rain_descriptor;
 
 #endif  // DIGITAL_RAIN_H_

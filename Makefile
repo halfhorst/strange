@@ -1,47 +1,37 @@
-.POSIX:
-
-CC = clang
-CCFLAGS = -std=c99 -Wall -Wextra -pedantic # -fsanitize=address,undefined,leak
-LDFLAGS = -Iinclude
-
-SRC_DIR=src
-BUILD_DIR=build
+CFLAGS = -Wall -Wextra -pedantic
+CXXFLAGS = -Wall -Wextra -pedantic -std=c++17
+CPPFLAGS = -I.
+LDFLAGS = -lm
+GTEST_PREFIX ?= /opt/homebrew/opt/googletest
+GTEST_CPPFLAGS = -I$(GTEST_PREFIX)/include
+GTEST_LDLIBS = -L$(GTEST_PREFIX)/lib -lgtest -lgtest_main -pthread
 
 TARGET = strange
-SOURCES = $(wildcard $(SRC_DIR)/*.c)
-OBJECTS = $(SOURCES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
+OBJECTS = main.o pty/runtime.o pty/pty.o pty/screensaver.o pty/state_machine.o pty/visible_screen.o pty/watermark.o src/cli.o src/renderer.o src/screensaver_registry.o src/demos/denabase.o src/demos/digital_rain.o
+TEST_TARGET = runtime_state_test
+TEST_OBJECTS = tests/cli_test.o tests/runtime_state_test.o tests/renderer_test.o tests/screensaver_registry_test.o tests/visible_screen_test.o pty/state_machine.o pty/visible_screen.o pty/watermark.o src/cli.o src/renderer.o src/screensaver_registry.o src/demos/denabase.o src/demos/digital_rain.o
 
-DEMO_SOURCES = $(wildcard $(SRC_DIR)/demos/*.c)
-DEMO_OBJECTS = $(DEMO_SOURCES:$(SRC_DIR)/demo/%.c=$(BUILD_DIR)/%.o)
+.PHONY: all clean debug test
 
-all: strange
+all: $(TARGET)
 
 debug: CFLAGS += -g
-debug: strange
+debug: $(TARGET)
 
-clangd:
-	bear --output build/compile_commands.json -- make
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
 
-analyze:
-	scan-build make
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS)
 
-strange: $(OBJECTS) $(DEMO_OBJECTS)
-	$(CC) $(CCFLAGS) $^ -o $@ $(LDFLAGS)
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CCFLAGS) -c $< -o $@ $(LDFLAGS)
+tests/%.o: tests/%.cc
+	$(CXX) $(CPPFLAGS) $(GTEST_CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+$(TEST_TARGET): $(TEST_OBJECTS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(GTEST_LDLIBS) $(LDFLAGS)
 
 clean:
-	rm -rf $(BUILD_DIR) strange
-
-denabase: strange
-	./strange -s denabase -d 10
-
-cube: strange
-	./strange -s cube -d 10
-
-digital_rain: strange
-	./strange -s digital_rain -d 10
-
-.PHONY: all clangd strange clean debug denabase cube digital_rain
+	rm -f main.o pty/*.o src/*.o src/demos/*.o tests/*.o strange $(TEST_TARGET) strangeland foo

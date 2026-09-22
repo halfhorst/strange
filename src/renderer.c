@@ -1,168 +1,230 @@
 #include "renderer.h"
 
-#include <math.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
-#include "cleanup.h"
-#include "screensaver.h"
-#include "timing.h"
-#include "tty.h"
-
-/* Initialize a screen buffer in the heap. Exits the program on failure. */
-struct ScreenBuffer* init_screen_buffer(int w, int h, int character_width);
-
-/* Free a screen buffer's memory */
-void free_screen_buffer(struct ScreenBuffer* buffer);
-
-/*
-  Allocate a character pattern on the heap. The pattern is the SL_SPACE_CHAR
-  followed by enoug SL_PADDING_CHAR to fill out the screen buffer's character
-  width. This pattern is allocated once for use when clearing the screen.
-*/
-char* init_clear_pattern(struct ScreenBuffer* sbuffer);
-
-/* Set the buffer to a blank screen. */
-void clear_screen_buffer(struct ScreenBuffer* buffer, char* pattern);
-
-/*
-  Reposition the cursor to the top left of the terminal and print the screen
-  buffer to stdout.
-*/
-void print_screen_buffer(struct ScreenBuffer* buffer);
-
-/*
-  The signal handling function. Calls the demo's cleanup function and restores
-  the tty.
-*/
-
-// The cleanup method. Combines the user-provided scene cleanup with tty and
-// memory handling.
-void cleanup();
-
-static struct ScreenBuffer* buffer;
-
-int render(struct ScreenSaver screensaver) {
-  int window_width, window_height;
-  if (get_window_size(&window_width, &window_height)) {
-    return EXIT_FAILURE;
-  }
-
-  buffer = init_screen_buffer(window_width, window_height,
-                              screensaver.character_width);
-  char* clear_pattern = init_clear_pattern(buffer);
-  init_timer();
-
-  uint64_t previous_time = get_time_ms();
-  int prev_window_width, prev_window_height;
-  for (;;) {
-    // check window size
-    prev_window_width = window_width;
-    prev_window_height = window_height;
-    if (get_window_size(&window_width, &window_height) != 0) {
-      screensaver.cleanup();
-      free_screen_buffer(buffer);
-      restore_tty();
-      return EXIT_FAILURE;
-    }
-
-    // Re-size if necessary
-    if ((window_width != prev_window_width) ||
-        (window_height != prev_window_height)) {
-      free_screen_buffer(buffer);
-      buffer = init_screen_buffer(window_width, window_height,
-                                  screensaver.character_width);
-      clear_tty();  // re-sizing introduces artifacts
-    } else {
-      clear_screen_buffer(buffer, clear_pattern);
-    }
-
-    uint64_t current_time = get_time_ms();
-    uint64_t elapsed_time = current_time - previous_time;
-    previous_time = current_time;
-    if (!screensaver.update(buffer, get_time_ms(), elapsed_time)) {
-      break;
-    }
-
-    print_to_tty(buffer);
-  }
-
-  screensaver.cleanup();
-  free_screen_buffer(buffer);
-  restore_tty();
-
-  return EXIT_SUCCESS;
+static size_t screen_buffer_bytes(const struct ScreenBuffer *buffer) {
+  return (size_t)buffer->w * (size_t)buffer->h *
+         (size_t)buffer->character_width;
 }
 
-struct ScreenBuffer* init_screen_buffer(int w, int h, int character_width) {
-  struct ScreenBuffer* buffer = malloc(sizeof(struct ScreenBuffer));
-  if (buffer == NULL) {
-    fprintf(stderr, "Failed to allocate screen buffer");
-    exit(EXIT_FAILURE);
+static int initialize_screen_buffer(struct ScreenBuffer *buffer, int w, int h,
+                                    int character_width) {
+  if (buffer == NULL || character_width < 1 || w < 1 || h < 1) {
+    errno = EINVAL;
+    return -1;
   }
+
+  buffer->buffer = malloc((size_t)w * (size_t)h * (size_t)character_width);
+  if (buffer->buffer == NULL) {
+    return -1;
+  }
+
   buffer->w = w;
   buffer->h = h;
   buffer->character_width = character_width;
-  buffer->buffer = malloc(sizeof(char) * character_width * w * h);
-  if (buffer->buffer == NULL) {
-    exit(EXIT_FAILURE);
+  strange_screen_buffer_clear(buffer);
+  return 0;
+}
+
+int strange_get_terminal_size(int fd, int *w, int *h) {
+  struct winsize ws;
+
+  if (ioctl(fd, TIOCGWINSZ, &ws) == -1) {
+    return -1;
   }
-  return buffer;
-}
-
-void free_screen_buffer(struct ScreenBuffer* buffer) {
-  free(buffer->buffer);
-  free(buffer);
-}
-
-/*
-  Write bytes to the (x, y) coordinate specified. The origin is defined as
-  the upper left corner of the screen. The number of bytes cannot exceed
-  the character_width of the screen buffer, and `x` annd `y` cannot exceed
-  the buffer's dimensions. If these conditions are violated the result is
-  a no-op.
-*/
-void write_to_buffer(struct ScreenBuffer* buffer, char* chars,
-                     uint32_t num_chars, uint16_t x, uint16_t y) {
-  int index = buffer->character_width * ((buffer->w * y) + x);
-
-  for (int i = 0; i < buffer->character_width; i++) {
-    buffer->buffer[index + i] = SL_PAD_CHAR;
+  if (ws.ws_col < 2 || ws.ws_row < 2) {
+    errno = ERANGE;
+    return -1;
   }
-  memcpy(buffer->buffer + index, chars, num_chars);
+
+  *w = ws.ws_col - 1;
+  *h = ws.ws_row - 1;
+  return 0;
 }
 
-char* init_clear_pattern(struct ScreenBuffer* buffer) {
-  char* pattern = malloc(sizeof(char) * buffer->character_width);
-  pattern[0] = SL_SPACE_CHAR;
-  for (int i = 1; i < buffer->character_width; i++) {
-    pattern[i] = SL_PAD_CHAR;
+int strange_screen_buffer_init(struct ScreenBuffer *buffer, int w, int h,
+                               int character_width) {
+  if (buffer == NULL) {
+    errno = EINVAL;
+    return -1;
   }
-  return pattern;
+
+  buffer->w = 0;
+  buffer->h = 0;
+  buffer->character_width = 0;
+  buffer->buffer = NULL;
+  return initialize_screen_buffer(buffer, w, h, character_width);
 }
 
-void clear_screen_buffer(struct ScreenBuffer* buffer, char* pattern) {
-  for (int i = 0; i < (buffer->w * buffer->h * buffer->character_width);
-       i += buffer->character_width) {
-    memcpy(buffer->buffer + i, pattern, buffer->character_width);
+int strange_screen_buffer_resize(struct ScreenBuffer *buffer, int w, int h) {
+  struct ScreenBuffer resized = {0};
+
+  if (buffer == NULL || buffer->character_width < 1) {
+    errno = EINVAL;
+    return -1;
   }
+
+  if (buffer->w == w && buffer->h == h && buffer->buffer != NULL) {
+    strange_screen_buffer_clear(buffer);
+    return 0;
+  }
+
+  if (initialize_screen_buffer(&resized, w, h, buffer->character_width) == -1) {
+    return -1;
+  }
+
+  strange_screen_buffer_free(buffer);
+  *buffer = resized;
+  return 0;
 }
 
-void draw_fps(struct ScreenBuffer* buffer, float fps) {
-  uint16_t rounded_fps = round(fps);
-  uint8_t x_chars_required = 9;
-  uint8_t y_chars_required = 5;
-
-  if (buffer->w < x_chars_required || buffer->h < y_chars_required) {
+void strange_screen_buffer_free(struct ScreenBuffer *buffer) {
+  if (buffer == NULL) {
     return;
   }
 
-  char formatted_fps[20];
-  snprintf(formatted_fps, sizeof(formatted_fps), " | %.3i | ", rounded_fps);
+  free(buffer->buffer);
+  buffer->buffer = NULL;
+  buffer->w = 0;
+  buffer->h = 0;
+  buffer->character_width = 0;
+}
 
-  // write_to_buffer(buffer, " ───── ", 7, 0, 1);
-  write_to_buffer(buffer, formatted_fps, 9, 0, 2);
-  // write_to_buffer(buffer, " ───── ", 7, 0, 3);
+void strange_screen_buffer_clear(struct ScreenBuffer *buffer) {
+  if (buffer == NULL || buffer->buffer == NULL || buffer->character_width < 1) {
+    return;
+  }
+
+  memset(buffer->buffer, SL_PAD_CHAR, screen_buffer_bytes(buffer));
+
+  for (size_t index = 0; index < screen_buffer_bytes(buffer);
+       index += (size_t)buffer->character_width) {
+    buffer->buffer[index] = SL_SPACE_CHAR;
+  }
+}
+
+int strange_render_context_init(struct strange_render_context *context,
+                                int terminal_fd, FILE *stream,
+                                int character_width) {
+  int w = 0;
+  int h = 0;
+
+  if (context == NULL || stream == NULL || character_width < 1) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  memset(context, 0, sizeof(*context));
+  if (strange_get_terminal_size(terminal_fd, &w, &h) == -1) {
+    return -1;
+  }
+  if (strange_screen_buffer_init(&context->buffer, w, h, character_width) ==
+      -1) {
+    return -1;
+  }
+
+  context->terminal_fd = terminal_fd;
+  context->stream = stream;
+  context->frame_count = 0;
+  return 0;
+}
+
+int strange_render_context_refresh_size(struct strange_render_context *context) {
+  int w = 0;
+  int h = 0;
+
+  if (context == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (strange_get_terminal_size(context->terminal_fd, &w, &h) == -1) {
+    return -1;
+  }
+
+  return strange_screen_buffer_resize(&context->buffer, w, h);
+}
+
+void strange_render_context_begin_frame(struct strange_render_context *context) {
+  if (context == NULL) {
+    return;
+  }
+
+  strange_screen_buffer_clear(&context->buffer);
+}
+
+int strange_render_context_present(struct strange_render_context *context) {
+  if (context == NULL || context->stream == NULL || context->buffer.buffer == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (fprintf(context->stream, "\033[H") < 0) {
+    return -1;
+  }
+
+  for (int row = 0; row < context->buffer.h; ++row) {
+    size_t offset = (size_t)row * (size_t)context->buffer.w *
+                    (size_t)context->buffer.character_width;
+    size_t row_bytes = (size_t)context->buffer.w *
+                       (size_t)context->buffer.character_width;
+
+    if (fwrite(context->buffer.buffer + offset, 1, row_bytes, context->stream) !=
+        row_bytes) {
+      return -1;
+    }
+    if (fputc('\n', context->stream) == EOF) {
+      return -1;
+    }
+  }
+
+  if (fflush(context->stream) == EOF) {
+    return -1;
+  }
+
+  context->frame_count++;
+  return 0;
+}
+
+void strange_render_context_destroy(struct strange_render_context *context) {
+  if (context == NULL) {
+    return;
+  }
+
+  strange_screen_buffer_free(&context->buffer);
+  context->stream = NULL;
+  context->terminal_fd = -1;
+  context->frame_count = 0;
+}
+
+void write_to_buffer(struct ScreenBuffer *sbuffer, const char *chars,
+                     int num_chars, int x, int y) {
+  if (sbuffer == NULL || sbuffer->buffer == NULL || chars == NULL ||
+      num_chars < 0 || num_chars > sbuffer->character_width || x < 0 || y < 0 ||
+      x >= sbuffer->w || y >= sbuffer->h) {
+    return;
+  }
+
+  int index = sbuffer->character_width * ((sbuffer->w * y) + x);
+  memset(sbuffer->buffer + index, SL_PAD_CHAR, sbuffer->character_width);
+  memcpy(sbuffer->buffer + index, chars, (size_t)num_chars);
+}
+
+void write_string_to_buffer(struct ScreenBuffer *sbuffer, const char *text,
+                            int x, int y) {
+  size_t remaining_width = 0;
+
+  if (sbuffer == NULL || text == NULL || x < 0 || y < 0 || x >= sbuffer->w ||
+      y >= sbuffer->h) {
+    return;
+  }
+
+  remaining_width = (size_t)(sbuffer->w - x);
+  for (size_t index = 0; text[index] != '\0' && index < remaining_width;
+       ++index) {
+    write_to_buffer(sbuffer, text + index, 1, x + (int)index, y);
+  }
 }

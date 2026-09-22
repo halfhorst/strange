@@ -20,17 +20,13 @@
   TODO: A writeup on how to flatten the 3D helix into 2D
   TODO: Use a sequence from a real organizm.
 */
-#include <stdbool.h>
-
-#include "renderer.h"
+#include "../screensaver_registry.h"
 
 #ifndef DENABASE_H_
 #define DENABASE_H_
 
 #define DENABASE_CHAR_WIDTH 1
 
-void denabase_init(void);
-bool denabase_update(struct ScreenBuffer* sbuffer, uint64_t time, uint32_t dt);
-void denabase_cleanup(void);
+extern const struct strange_screensaver_descriptor strange_denabase_descriptor;
 
 #endif  // DENABASE_H_
