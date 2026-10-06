@@ -13,6 +13,7 @@
 static struct termios orig_termios;
 static int raw_mode_enabled = 0;
 static int screensaver_visible = 0;
+static int on_alternate_screen = 0;
 static struct strange_render_context screensaver_context;
 static int screensaver_context_ready = 0;
 static const struct strange_screensaver_descriptor *selected_descriptor = NULL;
@@ -105,7 +106,7 @@ void enable_raw_mode(void) {
   raw_mode_enabled = 1;
 }
 
-int enter_screensaver(void) {
+int enter_screensaver(int use_alternate_screen) {
   if (screensaver_visible) {
     return 0;
   }
@@ -125,14 +126,17 @@ int enter_screensaver(void) {
 
   screensaver_instance_ready = 1;
   screensaver_visible = 1;
+  on_alternate_screen = use_alternate_screen;
 
-  printf("\033[2J\033[H");
-  printf("\033[?25l");
+  if (on_alternate_screen) {
+    printf("\033[?1049h");
+  }
+  printf("\033[0m\033[2J\033[H\033[?25l");
   fflush(stdout);
   return 0;
 }
 
-void leave_screensaver(void) {
+void leave_screensaver(int show_cursor) {
   if (!screensaver_visible) {
     return;
   }
@@ -140,7 +144,12 @@ void leave_screensaver(void) {
   screensaver_visible = 0;
   cleanup_screensaver_instance();
 
-  printf("\033[?25h");
+  if (on_alternate_screen) {
+    printf("\033[?1049l");
+  }
+  if (show_cursor) {
+    printf("\033[?25h");
+  }
   fflush(stdout);
   destroy_render_context();
 }

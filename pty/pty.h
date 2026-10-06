@@ -11,6 +11,6 @@ void cleanup_pty(void);
 int poll_shell_exit(int *status);
 int strange_shutdown_requested(void);
 int strange_consume_resize_event(void);
-int strange_sync_pty_window_size(void);
+int strange_sync_pty_window_size(int misreport_height);
 
 #endif

@@ -12,7 +12,7 @@
 #include "pty.h"
 #include "screensaver.h"
 #include "state_machine.h"
-#include "visible_screen.h"
+#include "terminal_modes.h"
 
 #define STRANGE_DISABLE_KEY 0x11
 #define STRANGE_POLL_INTERVAL_USEC 100000
@@ -31,6 +31,10 @@ static struct {
   size_t length;
   size_t capacity;
 } held_output;
+
+// Set while the screensaver is drawn over a full-screen program's own screen.
+// The program is told a wrong height meanwhile so that it repaints on wake.
+static int drew_over_child_screen;
 
 static int monotonic_now(struct timespec *now) {
   if (clock_gettime(CLOCK_MONOTONIC, now) == -1) {
@@ -101,14 +105,15 @@ static int flush_pending_input(void) {
   return 0;
 }
 
-static int forward_output(struct strange_visible_screen *visible_screen,
+static int forward_output(struct strange_terminal_modes *modes,
                           const char *buffer, size_t length) {
   if (write_all(STDOUT_FILENO, buffer, length) == -1) {
     perror("write");
     return -1;
   }
 
-  return strange_visible_screen_write(visible_screen, buffer, length);
+  strange_terminal_modes_write(modes, buffer, length);
+  return 0;
 }
 
 static int hold_output(const char *buffer, size_t length) {
@@ -139,11 +144,11 @@ static int hold_output(const char *buffer, size_t length) {
   return 0;
 }
 
-static int release_held_output(struct strange_visible_screen *visible_screen) {
+static int release_held_output(struct strange_terminal_modes *modes) {
   int result = 0;
 
   if (held_output.length > 0) {
-    result = forward_output(visible_screen, held_output.bytes,
+    result = forward_output(modes, held_output.bytes,
                             held_output.length);
   }
 
@@ -152,30 +157,40 @@ static int release_held_output(struct strange_visible_screen *visible_screen) {
   return result;
 }
 
-static int exit_screensaver(struct strange_visible_screen *visible_screen) {
-  leave_screensaver();
-  if (strange_visible_screen_restore_to_fd(visible_screen, STDOUT_FILENO) ==
-      -1) {
-    perror("restore");
+static int exit_screensaver(struct strange_terminal_modes *modes) {
+  leave_screensaver(modes->cursor_visible);
+  if (release_held_output(modes) == -1) {
     return -1;
   }
 
-  return release_held_output(visible_screen);
+  if (drew_over_child_screen) {
+    drew_over_child_screen = 0;
+    if (strange_sync_pty_window_size(0) == -1) {
+      perror("ioctl");
+      return -1;
+    }
+  }
+
+  return 0;
 }
 
 static int apply_transition_effects(
     const struct strange_state_transition *transition,
     const struct timespec *now,
-    struct strange_visible_screen *visible_screen) {
+    struct strange_terminal_modes *modes) {
   if (transition->entered_screensaver) {
-    if (strange_visible_screen_capture_snapshot(visible_screen) == -1 ||
-        enter_screensaver() == -1) {
+    drew_over_child_screen = modes->alternate_screen;
+    if (enter_screensaver(!drew_over_child_screen) == -1) {
       perror("screensaver");
+      return -1;
+    }
+    if (drew_over_child_screen && strange_sync_pty_window_size(1) == -1) {
+      perror("ioctl");
       return -1;
     }
   }
   if (transition->exited_screensaver &&
-      exit_screensaver(visible_screen) == -1) {
+      exit_screensaver(modes) == -1) {
     return -1;
   }
   if (transition->current_state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
@@ -189,22 +204,22 @@ static int apply_transition_effects(
 static int handle_runtime_event(struct strange_state_machine *machine,
                                 enum strange_runtime_event event,
                                 const struct timespec *now,
-                                struct strange_visible_screen *visible_screen) {
+                                struct strange_terminal_modes *modes) {
   struct strange_state_transition transition =
       strange_state_machine_handle_event(machine, event, now);
-  return apply_transition_effects(&transition, now, visible_screen);
+  return apply_transition_effects(&transition, now, modes);
 }
 
 static int forward_input_slice(struct strange_state_machine *machine,
                                const char *buffer, size_t length,
                                const struct timespec *now,
-                               struct strange_visible_screen *visible_screen) {
+                               struct strange_terminal_modes *modes) {
   if (length == 0) {
     return 0;
   }
 
   if (handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_USER_INPUT, now,
-                           visible_screen) == -1) {
+                           modes) == -1) {
     return -1;
   }
 
@@ -225,13 +240,13 @@ static int forward_input_slice(struct strange_state_machine *machine,
 static int handle_stdin_buffer(struct strange_state_machine *machine,
                                const char *buffer, size_t length,
                                const struct timespec *now,
-                               struct strange_visible_screen *visible_screen) {
+                               struct strange_terminal_modes *modes) {
   if (machine->state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
     enum strange_runtime_event event =
         memchr(buffer, STRANGE_DISABLE_KEY, length) != NULL
             ? STRANGE_RUNTIME_EVENT_DISABLE
             : STRANGE_RUNTIME_EVENT_USER_INPUT;
-    return handle_runtime_event(machine, event, now, visible_screen);
+    return handle_runtime_event(machine, event, now, modes);
   }
 
   size_t slice_start = 0;
@@ -242,11 +257,11 @@ static int handle_stdin_buffer(struct strange_state_machine *machine,
     }
 
     if (forward_input_slice(machine, buffer + slice_start, index - slice_start,
-                            now, visible_screen) == -1) {
+                            now, modes) == -1) {
       return -1;
     }
     if (handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_DISABLE, now,
-                             visible_screen) == -1) {
+                             modes) == -1) {
       return -1;
     }
 
@@ -254,28 +269,16 @@ static int handle_stdin_buffer(struct strange_state_machine *machine,
   }
 
   return forward_input_slice(machine, buffer + slice_start,
-                             length - slice_start, now, visible_screen);
+                             length - slice_start, now, modes);
 }
 
 static int sync_resize_if_needed(enum strange_runtime_state state,
-                                 const struct timespec *now,
-                                 struct strange_visible_screen *visible_screen) {
-  int w = 0;
-  int h = 0;
-
+                                 const struct timespec *now) {
   if (!strange_consume_resize_event()) {
     return 0;
   }
-  if (strange_sync_pty_window_size() == -1) {
+  if (strange_sync_pty_window_size(drew_over_child_screen) == -1) {
     perror("ioctl");
-    return -1;
-  }
-  if (strange_get_terminal_size(STDOUT_FILENO, &w, &h) == -1 ||
-      strange_visible_screen_resize(
-          visible_screen, w, h,
-          state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE,
-          state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) == -1) {
-    perror("resize");
     return -1;
   }
   if (state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
@@ -290,15 +293,13 @@ int strange_run(const struct strange_options *options) {
   int status = 1;
   int runtime_status = 0;
   char buffer[STRANGE_BUFFER_SIZE];
-  struct strange_visible_screen visible_screen = {0};
+  struct strange_terminal_modes modes;
   struct strange_state_machine machine = {
       .state = STRANGE_RUNTIME_STATE_PASSTHROUGH,
       .timeout_seconds = options->timeout_seconds,
       .last_activity_at = {0, 0},
   };
   struct timespec now;
-  int w = 0;
-  int h = 0;
 
   if (options == NULL || options->screensaver_descriptor == NULL ||
       strange_set_screensaver_descriptor(options->screensaver_descriptor) ==
@@ -311,13 +312,9 @@ int strange_run(const struct strange_options *options) {
     fprintf(stderr, "Failed to set up PTY and shell\n");
     return 1;
   }
-  if (strange_get_terminal_size(STDOUT_FILENO, &w, &h) == -1 ||
-      strange_visible_screen_init(&visible_screen, w, h) == -1) {
-    perror("terminal size");
-    goto cleanup;
-  }
-
+  strange_terminal_modes_init(&modes);
   pending_input.length = 0;
+  drew_over_child_screen = 0;
   memset(&held_output, 0, sizeof(held_output));
   enable_raw_mode();
 
@@ -336,19 +333,19 @@ int strange_run(const struct strange_options *options) {
       goto cleanup;
     }
 
-    if (sync_resize_if_needed(machine.state, &now, &visible_screen) == -1) {
+    if (sync_resize_if_needed(machine.state, &now) == -1) {
       goto cleanup;
     }
 
     if (strange_shutdown_requested()) {
       handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now,
-                           &visible_screen);
+                           &modes);
       break;
     }
 
     if (strange_state_machine_timeout_due(&machine, &now)) {
       if (handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_TIMEOUT, &now,
-                               &visible_screen) == -1) {
+                               &modes) == -1) {
         goto cleanup;
       }
     } else if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
@@ -401,12 +398,12 @@ int strange_run(const struct strange_options *options) {
           goto cleanup;
         }
         if (handle_stdin_buffer(&machine, buffer, (size_t)bytes, &now,
-                                &visible_screen) == -1) {
+                                &modes) == -1) {
           goto cleanup;
         }
       } else if (bytes == 0) {
         handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now,
-                             &visible_screen);
+                             &modes);
       } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
         perror("read");
         goto cleanup;
@@ -426,15 +423,15 @@ int strange_run(const struct strange_options *options) {
         if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
             handle_runtime_event(&machine,
                                  STRANGE_RUNTIME_EVENT_OUTPUT_OVERFLOW, &now,
-                                 &visible_screen) == -1) {
+                                 &modes) == -1) {
           goto cleanup;
         }
-        if (forward_output(&visible_screen, buffer, (size_t)bytes) == -1) {
+        if (forward_output(&modes, buffer, (size_t)bytes) == -1) {
           goto cleanup;
         }
       } else if (bytes == 0 || (bytes < 0 && errno == EIO)) {
         handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now,
-                             &visible_screen);
+                             &modes);
       } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
         perror("read");
         goto cleanup;
@@ -449,7 +446,7 @@ int strange_run(const struct strange_options *options) {
     }
     if (shell_exited == 1) {
       handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now,
-                           &visible_screen);
+                           &modes);
       runtime_status = 0;
       break;
     }
@@ -459,9 +456,8 @@ int strange_run(const struct strange_options *options) {
 
 cleanup:
   if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
-    exit_screensaver(&visible_screen);
+    exit_screensaver(&modes);
   }
-  strange_visible_screen_destroy(&visible_screen);
   disable_raw_mode();
   cleanup_pty();
 

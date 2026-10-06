@@ -174,7 +174,12 @@ int strange_consume_resize_event(void) {
   return 1;
 }
 
-int strange_sync_pty_window_size(void) {
+/*
+  Copy the terminal's size to the PTY. With `misreport_height` the PTY is told
+  a height one row off, so that reporting the true size later is a change and
+  makes a full-screen program repaint.
+*/
+int strange_sync_pty_window_size(int misreport_height) {
   struct winsize terminal_size;
 
   if (master_fd < 0) {
@@ -183,6 +188,9 @@ int strange_sync_pty_window_size(void) {
   }
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size) == -1) {
     return -1;
+  }
+  if (misreport_height) {
+    terminal_size.ws_row += terminal_size.ws_row > 1 ? -1 : 1;
   }
 
   return ioctl(master_fd, TIOCSWINSZ, &terminal_size);
