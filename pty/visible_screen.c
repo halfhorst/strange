@@ -59,6 +59,7 @@ static void scroll_up(struct strange_visible_screen *screen) {
 }
 
 static void clamp_cursor(struct strange_visible_screen *screen) {
+  screen->wrap_pending = 0;
   if (screen->cursor_x < 0) {
     screen->cursor_x = 0;
   }
@@ -99,20 +100,22 @@ static void line_feed(struct strange_visible_screen *screen) {
   screen->cursor_y++;
 }
 
-static void advance_cursor(struct strange_visible_screen *screen) {
-  if (screen->cursor_x >= screen->current.w - 1) {
+static void put_byte(struct strange_visible_screen *screen, unsigned char byte) {
+  if (screen->wrap_pending) {
+    screen->wrap_pending = 0;
     screen->cursor_x = 0;
     line_feed(screen);
+  }
+
+  screen->current.buffer[(screen->cursor_y * screen->current.w) +
+                         screen->cursor_x] = (char)byte;
+
+  if (screen->cursor_x >= screen->current.w - 1) {
+    screen->wrap_pending = 1;
     return;
   }
 
   screen->cursor_x++;
-}
-
-static void put_byte(struct strange_visible_screen *screen, unsigned char byte) {
-  screen->current.buffer[(screen->cursor_y * screen->current.w) +
-                         screen->cursor_x] = (char)byte;
-  advance_cursor(screen);
 }
 
 static int csi_param(const char *params, size_t length, size_t index,
@@ -237,23 +240,22 @@ static void process_byte(struct strange_visible_screen *screen,
     }
     if (byte == '\r') {
       screen->cursor_x = 0;
+      screen->wrap_pending = 0;
       return;
     }
     if (byte == '\n') {
+      screen->wrap_pending = 0;
       line_feed(screen);
       return;
     }
     if (byte == '\b') {
-      if (screen->cursor_x > 0) {
-        screen->cursor_x--;
-      }
+      screen->cursor_x--;
+      clamp_cursor(screen);
       return;
     }
     if (byte == '\t') {
-      int next_stop = ((screen->cursor_x / 8) + 1) * 8;
-      do {
-        put_byte(screen, SL_SPACE_CHAR);
-      } while (screen->cursor_x < next_stop && screen->cursor_x != 0);
+      screen->cursor_x = ((screen->cursor_x / 8) + 1) * 8;
+      clamp_cursor(screen);
       return;
     }
     if (byte >= 0x20 && byte != 0x7f) {
@@ -276,15 +278,18 @@ static void process_byte(struct strange_visible_screen *screen,
     } else if (byte == '8') {
       restore_cursor(screen);
     } else if (byte == 'D') {
+      screen->wrap_pending = 0;
       line_feed(screen);
     } else if (byte == 'E') {
       screen->cursor_x = 0;
+      screen->wrap_pending = 0;
       line_feed(screen);
     } else if (byte == 'c') {
       strange_screen_buffer_clear(&screen->current);
       screen->cursor_x = 0;
       screen->cursor_y = 0;
       screen->cursor_visible = 1;
+      screen->wrap_pending = 0;
     }
     return;
   case STRANGE_VISIBLE_SCREEN_CSI:
@@ -500,18 +505,16 @@ int strange_visible_screen_restore(struct strange_visible_screen *screen,
 
   buffer = restored_buffer(screen, &cursor_x, &cursor_y, &cursor_visible);
 
-  if (fprintf(stream, "\033[2J\033[H") < 0) {
+  if (fprintf(stream, "\033[2J") < 0) {
     return -1;
   }
 
   for (int row = 0; row < buffer->h; ++row) {
     size_t offset = (size_t)row * (size_t)buffer->w;
 
-    if (fwrite(buffer->buffer + offset, 1, (size_t)buffer->w, stream) !=
-        (size_t)buffer->w) {
-      return -1;
-    }
-    if (fputc('\n', stream) == EOF) {
+    if (fprintf(stream, "\033[%d;1H", row + 1) < 0 ||
+        fwrite(buffer->buffer + offset, 1, (size_t)buffer->w, stream) !=
+            (size_t)buffer->w) {
       return -1;
     }
   }
@@ -531,7 +534,9 @@ int strange_visible_screen_restore_to_fd(struct strange_visible_screen *screen,
   int cursor_y = 0;
   int cursor_visible = 1;
   char cursor_sequence[32];
+  char row_sequence[16];
   int cursor_length = 0;
+  int row_length = 0;
 
   if (screen == NULL || fd < 0 || screen->current.buffer == NULL) {
     errno = EINVAL;
@@ -540,15 +545,18 @@ int strange_visible_screen_restore_to_fd(struct strange_visible_screen *screen,
 
   buffer = restored_buffer(screen, &cursor_x, &cursor_y, &cursor_visible);
 
-  if (write_all(fd, "\033[2J\033[H", strlen("\033[2J\033[H")) == -1) {
+  if (write_all(fd, "\033[2J", strlen("\033[2J")) == -1) {
     return -1;
   }
 
   for (int row = 0; row < buffer->h; ++row) {
     size_t offset = (size_t)row * (size_t)buffer->w;
 
-    if (write_all(fd, buffer->buffer + offset, (size_t)buffer->w) == -1 ||
-        write_all(fd, "\n", 1) == -1) {
+    row_length =
+        snprintf(row_sequence, sizeof(row_sequence), "\033[%d;1H", row + 1);
+    if (row_length < 0 || (size_t)row_length >= sizeof(row_sequence) ||
+        write_all(fd, row_sequence, (size_t)row_length) == -1 ||
+        write_all(fd, buffer->buffer + offset, (size_t)buffer->w) == -1) {
       return -1;
     }
   }

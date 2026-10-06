@@ -36,13 +36,13 @@ int strange_get_terminal_size(int fd, int *w, int *h) {
   if (ioctl(fd, TIOCGWINSZ, &ws) == -1) {
     return -1;
   }
-  if (ws.ws_col < 2 || ws.ws_row < 2) {
+  if (ws.ws_col < 1 || ws.ws_row < 1) {
     errno = ERANGE;
     return -1;
   }
 
-  *w = ws.ws_col - 1;
-  *h = ws.ws_row - 1;
+  *w = ws.ws_col;
+  *h = ws.ws_row;
   return 0;
 }
 
@@ -162,21 +162,15 @@ int strange_render_context_present(struct strange_render_context *context) {
     return -1;
   }
 
-  if (fprintf(context->stream, "\033[H") < 0) {
-    return -1;
-  }
-
   for (int row = 0; row < context->buffer.h; ++row) {
     size_t offset = (size_t)row * (size_t)context->buffer.w *
                     (size_t)context->buffer.character_width;
     size_t row_bytes = (size_t)context->buffer.w *
                        (size_t)context->buffer.character_width;
 
-    if (fwrite(context->buffer.buffer + offset, 1, row_bytes, context->stream) !=
-        row_bytes) {
-      return -1;
-    }
-    if (fputc('\n', context->stream) == EOF) {
+    if (fprintf(context->stream, "\033[%d;1H", row + 1) < 0 ||
+        fwrite(context->buffer.buffer + offset, 1, row_bytes, context->stream) !=
+            row_bytes) {
       return -1;
     }
   }

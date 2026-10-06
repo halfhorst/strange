@@ -65,7 +65,7 @@ TEST(RendererCoreTest, PresentWritesTheFrameAndAdvancesFrameCount) {
   ASSERT_EQ(std::fflush(context.stream), 0);
   std::rewind(context.stream);
   ASSERT_NE(std::fgets(rendered, sizeof(rendered), context.stream), nullptr);
-  EXPECT_STREQ(rendered, "\033[HOK\n");
+  EXPECT_STREQ(rendered, "\033[1;1HOK");
 
   std::fclose(context.stream);
   strange_screen_buffer_free(&context.buffer);

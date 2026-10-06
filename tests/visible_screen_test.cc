@@ -45,7 +45,7 @@ TEST(VisibleScreenTest, TracksAnsiTextAndRestoresCapturedSnapshot) {
   ASSERT_EQ(strange_visible_screen_restore(&screen, stream), 0);
 
   EXPECT_EQ(ReadFile(stream),
-            "\033[2J\033[HXYc   \n  Z   \n\033[2;4H\033[?25l");
+            "\033[2J\033[1;1HXYc   \033[2;1H  Z   \033[2;4H\033[?25l");
 
   std::fclose(stream);
   strange_visible_screen_destroy(&screen);
@@ -109,6 +109,21 @@ TEST(VisibleScreenTest, RestoresARealShellTranscriptSnapshot) {
   EXPECT_NE(restored.find("before-saver"), std::string::npos);
 
   std::fclose(stream);
+  strange_visible_screen_destroy(&screen);
+}
+
+TEST(VisibleScreenTest, FullWidthLineWrapsOnlyWhenMoreTextFollows) {
+  strange_visible_screen screen = {};
+
+  ASSERT_EQ(strange_visible_screen_init(&screen, 4, 3), 0);
+  ASSERT_EQ(strange_visible_screen_write(&screen, "abcd\r\nef", 8), 0);
+  EXPECT_EQ(Row(screen.current, 0), "abcd");
+  EXPECT_EQ(Row(screen.current, 1), "ef  ");
+
+  ASSERT_EQ(strange_visible_screen_write(&screen, "ghi", 3), 0);
+  EXPECT_EQ(Row(screen.current, 1), "efgh");
+  EXPECT_EQ(Row(screen.current, 2), "i   ");
+
   strange_visible_screen_destroy(&screen);
 }
 

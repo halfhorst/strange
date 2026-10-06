@@ -14,6 +14,7 @@ struct strange_visible_screen {
   int saved_cursor_x;
   int saved_cursor_y;
   int saved_cursor_ready;
+  int wrap_pending;
   int cursor_visible;
   int snapshot_cursor_x;
   int snapshot_cursor_y;
