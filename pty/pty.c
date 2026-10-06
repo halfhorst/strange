@@ -110,20 +110,28 @@ static int build_login_argv0(const char *shell_path, char *argv0,
   return 0;
 }
 
-static int copy_terminal_state(int slave_fd) {
-  struct termios terminal_state;
+struct terminal_state {
+  struct termios attributes;
+  struct winsize size;
+  int size_known;
+};
 
-  if (tcgetattr(STDIN_FILENO, &terminal_state) == -1) {
+static int read_terminal_state(struct terminal_state *state) {
+  if (tcgetattr(STDIN_FILENO, &state->attributes) == -1) {
     return -1;
   }
 
-  if (tcsetattr(slave_fd, TCSANOW, &terminal_state) == -1) {
+  state->size_known = ioctl(STDIN_FILENO, TIOCGWINSZ, &state->size) == 0;
+  return 0;
+}
+
+static int apply_terminal_state(int slave_fd,
+                                const struct terminal_state *state) {
+  if (tcsetattr(slave_fd, TCSANOW, &state->attributes) == -1) {
     return -1;
   }
 
-  struct winsize terminal_size;
-  if (ioctl(STDIN_FILENO, TIOCGWINSZ, &terminal_size) == 0 &&
-      ioctl(slave_fd, TIOCSWINSZ, &terminal_size) == -1) {
+  if (state->size_known && ioctl(slave_fd, TIOCSWINSZ, &state->size) == -1) {
     return -1;
   }
 
@@ -217,7 +225,8 @@ int poll_shell_exit(int *status) {
 }
 
 static void exec_login_shell_or_die(const char *shell_path,
-                                    const char *slave_name) {
+                                    const char *slave_name,
+                                    const struct terminal_state *state) {
   if (setsid() == -1) {
     perror("setsid");
     _exit(EXIT_FAILURE);
@@ -234,7 +243,7 @@ static void exec_login_shell_or_die(const char *shell_path,
     _exit(EXIT_FAILURE);
   }
 
-  if (copy_terminal_state(slave_fd) == -1) {
+  if (apply_terminal_state(slave_fd, state) == -1) {
     perror("terminal setup");
     _exit(EXIT_FAILURE);
   }
@@ -267,6 +276,7 @@ static void exec_login_shell_or_die(const char *shell_path,
 int setup_pty_and_shell(void) {
   char slave_name[128];
   const char *shell_path = resolve_shell_path();
+  struct terminal_state state;
 
   shutdown_requested = 0;
   resize_requested = 0;
@@ -275,6 +285,11 @@ int setup_pty_and_shell(void) {
 
   if (!shell_path_is_valid(shell_path)) {
     errno = ENOENT;
+    return -1;
+  }
+
+  if (read_terminal_state(&state) == -1) {
+    perror("tcgetattr");
     return -1;
   }
 
@@ -304,7 +319,7 @@ int setup_pty_and_shell(void) {
   }
 
   if (shell_pid == 0) {
-    exec_login_shell_or_die(shell_path, slave_name);
+    exec_login_shell_or_die(shell_path, slave_name, &state);
   }
 
   if (set_nonblocking(master_fd) == -1) {
