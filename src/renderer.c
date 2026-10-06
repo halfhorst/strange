@@ -6,6 +6,10 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+// Unchanged cells between two changed ones are rewritten when the gap is
+// shorter than this, which costs less than another cursor move.
+#define STRANGE_RENDER_RUN_MAX_GAP 4
+
 static size_t screen_buffer_bytes(const struct ScreenBuffer *buffer) {
   return (size_t)buffer->w * (size_t)buffer->h *
          (size_t)buffer->character_width;
@@ -156,24 +160,92 @@ void strange_render_context_begin_frame(struct strange_render_context *context) 
   strange_screen_buffer_clear(&context->buffer);
 }
 
+static int write_cells(FILE *stream, const struct ScreenBuffer *buffer, int row,
+                       int start, int end) {
+  size_t cell_bytes = (size_t)buffer->character_width;
+  size_t offset = ((size_t)row * (size_t)buffer->w + (size_t)start) * cell_bytes;
+  size_t length = (size_t)(end - start) * cell_bytes;
+
+  if (fprintf(stream, "\033[%d;%dH", row + 1, start + 1) < 0 ||
+      fwrite(buffer->buffer + offset, 1, length, stream) != length) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int cell_changed(const struct ScreenBuffer *buffer,
+                        const struct ScreenBuffer *presented, int row, int x) {
+  size_t cell_bytes = (size_t)buffer->character_width;
+  size_t offset = ((size_t)row * (size_t)buffer->w + (size_t)x) * cell_bytes;
+
+  return memcmp(buffer->buffer + offset, presented->buffer + offset,
+                cell_bytes) != 0;
+}
+
+static int write_changed_cells(FILE *stream, const struct ScreenBuffer *buffer,
+                               const struct ScreenBuffer *presented, int row) {
+  int x = 0;
+
+  while (x < buffer->w) {
+    int end = 0;
+
+    if (!cell_changed(buffer, presented, row, x)) {
+      x++;
+      continue;
+    }
+
+    end = x + 1;
+    for (int next = end;
+         next < buffer->w && next - end < STRANGE_RENDER_RUN_MAX_GAP; ++next) {
+      if (cell_changed(buffer, presented, row, next)) {
+        end = next + 1;
+      }
+    }
+
+    if (write_cells(stream, buffer, row, x, end) == -1) {
+      return -1;
+    }
+    x = end;
+  }
+
+  return 0;
+}
+
 int strange_render_context_present(struct strange_render_context *context) {
+  const struct ScreenBuffer *buffer = NULL;
+  struct ScreenBuffer *presented = NULL;
+  int redraw_everything = 0;
+
   if (context == NULL || context->stream == NULL || context->buffer.buffer == NULL) {
     errno = EINVAL;
     return -1;
   }
 
-  for (int row = 0; row < context->buffer.h; ++row) {
-    size_t offset = (size_t)row * (size_t)context->buffer.w *
-                    (size_t)context->buffer.character_width;
-    size_t row_bytes = (size_t)context->buffer.w *
-                       (size_t)context->buffer.character_width;
+  buffer = &context->buffer;
+  presented = &context->presented;
+  if (presented->buffer == NULL || presented->w != buffer->w ||
+      presented->h != buffer->h ||
+      presented->character_width != buffer->character_width) {
+    strange_screen_buffer_free(presented);
+    if (strange_screen_buffer_init(presented, buffer->w, buffer->h,
+                                   buffer->character_width) == -1) {
+      return -1;
+    }
+    redraw_everything = 1;
+  }
 
-    if (fprintf(context->stream, "\033[%d;1H", row + 1) < 0 ||
-        fwrite(context->buffer.buffer + offset, 1, row_bytes, context->stream) !=
-            row_bytes) {
+  for (int row = 0; row < buffer->h; ++row) {
+    int result = redraw_everything
+                     ? write_cells(context->stream, buffer, row, 0, buffer->w)
+                     : write_changed_cells(context->stream, buffer, presented,
+                                           row);
+    if (result == -1) {
       return -1;
     }
   }
+
+  memcpy(presented->buffer, buffer->buffer, screen_buffer_bytes(buffer));
 
   if (fflush(context->stream) == EOF) {
     return -1;
@@ -189,6 +261,7 @@ void strange_render_context_destroy(struct strange_render_context *context) {
   }
 
   strange_screen_buffer_free(&context->buffer);
+  strange_screen_buffer_free(&context->presented);
   context->stream = NULL;
   context->terminal_fd = -1;
   context->frame_count = 0;

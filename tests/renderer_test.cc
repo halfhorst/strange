@@ -68,7 +68,37 @@ TEST(RendererCoreTest, PresentWritesTheFrameAndAdvancesFrameCount) {
   EXPECT_STREQ(rendered, "\033[1;1HOK");
 
   std::fclose(context.stream);
-  strange_screen_buffer_free(&context.buffer);
+  strange_render_context_destroy(&context);
+}
+
+TEST(RendererCoreTest, PresentAfterTheFirstFrameWritesOnlyChangedCells) {
+  strange_render_context context = {};
+  char rendered[64] = {};
+
+  ASSERT_EQ(strange_screen_buffer_init(&context.buffer, 12, 2, 1), 0);
+  context.stream = tmpfile();
+  ASSERT_NE(context.stream, nullptr);
+
+  write_string_to_buffer(&context.buffer, "hello world", 0, 1);
+  ASSERT_EQ(strange_render_context_present(&context), 0);
+  ASSERT_EQ(strange_render_context_present(&context), 0);
+  const long after_identical_frame = std::ftell(context.stream);
+
+  write_string_to_buffer(&context.buffer, "J", 0, 1);
+  write_string_to_buffer(&context.buffer, "p", 2, 1);
+  write_string_to_buffer(&context.buffer, "R", 8, 1);
+  ASSERT_EQ(strange_render_context_present(&context), 0);
+
+  const long first_frame_bytes =
+      static_cast<long>(std::strlen("\033[1;1H\033[2;1H")) + 24;
+  EXPECT_EQ(after_identical_frame, first_frame_bytes);
+
+  ASSERT_EQ(std::fseek(context.stream, after_identical_frame, SEEK_SET), 0);
+  ASSERT_NE(std::fgets(rendered, sizeof(rendered), context.stream), nullptr);
+  EXPECT_STREQ(rendered, "\033[2;1HJep\033[2;9HR");
+
+  std::fclose(context.stream);
+  strange_render_context_destroy(&context);
 }
 
 TEST(RendererCoreTest, WatermarkRendersInstructionsIntoTopRightCorner) {

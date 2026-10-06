@@ -20,6 +20,7 @@ struct ScreenBuffer {
 
 struct strange_render_context {
   struct ScreenBuffer buffer;
+  struct ScreenBuffer presented;  // what the terminal currently shows
   int terminal_fd;
   FILE *stream;
   unsigned long frame_count;
@@ -36,6 +37,10 @@ int strange_render_context_init(struct strange_render_context *context,
                                 int character_width);
 int strange_render_context_refresh_size(struct strange_render_context *context);
 void strange_render_context_begin_frame(struct strange_render_context *context);
+/*
+  Send the frame in `buffer` to the terminal. Only cells that differ from the
+  previous frame are written, unless the size changed since then.
+*/
 int strange_render_context_present(struct strange_render_context *context);
 void strange_render_context_destroy(struct strange_render_context *context);
 
