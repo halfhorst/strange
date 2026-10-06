@@ -10,6 +10,13 @@
 extern "C" {
 #endif
 
+/*
+  Identifies the layout of the descriptor, the frame and the screen buffer and
+  the meaning of the callbacks. It changes whenever a library built against the
+  old ones would no longer work.
+*/
+#define STRANGE_SCREENSAVER_API_VERSION 1
+
 #define STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL "strange_screensaver_descriptor"
 #define STRANGE_LUA_DESCRIPTOR_NAME_FIELD "name"
 #define STRANGE_LUA_DESCRIPTOR_CHARACTER_WIDTH_FIELD "character_width"
@@ -30,6 +37,7 @@ typedef int (*strange_screensaver_update_fn)(
 typedef void (*strange_screensaver_cleanup_fn)(void *state);
 
 struct strange_screensaver_descriptor {
+  int api_version;  // always first, so it can be read whatever follows
   const char *name;
   int character_width;
   strange_screensaver_init_fn init;
@@ -63,7 +71,9 @@ struct strange_screensaver_catalog {
 
 /*
   Native shared libraries export a descriptor with the name in
-  STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL. Only `name` is required, and
+  STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL. They set `api_version` to
+  STRANGE_SCREENSAVER_API_VERSION and are refused if it differs from the
+  version strange was built with. Besides that only `name` is required, and
   `character_width` defaults to 1 when it is left at zero. Lua screensavers
   return a table using the field names above; see lua_screensaver.h.
 

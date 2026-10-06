@@ -38,6 +38,15 @@ static int load_shared_library(
     dlclose(library);
     return -1;
   }
+  if (loaded->api_version != STRANGE_SCREENSAVER_API_VERSION) {
+    set_error(error_buffer, error_buffer_size,
+              "%s was built for screensaver API version %d, but this strange "
+              "uses version %d; rebuild it",
+              record->path, loaded->api_version,
+              STRANGE_SCREENSAVER_API_VERSION);
+    dlclose(library);
+    return -1;
+  }
   if (strange_screensaver_descriptor_validate(loaded) == -1) {
     set_error(error_buffer, error_buffer_size,
               "%s exports a descriptor without a name", record->path);

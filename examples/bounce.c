@@ -53,6 +53,7 @@ static int bounce_update(void *state, struct ScreenBuffer *buffer,
 static void bounce_cleanup(void *state) { free(state); }
 
 const struct strange_screensaver_descriptor strange_screensaver_descriptor = {
+    .api_version = STRANGE_SCREENSAVER_API_VERSION,
     .name = "bounce",
     .character_width = 1,
     .init = bounce_init,

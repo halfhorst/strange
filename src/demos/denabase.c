@@ -206,6 +206,7 @@ static void denabase_cleanup(void *state) {
 }
 
 const struct strange_screensaver_descriptor strange_denabase_descriptor = {
+    .api_version = STRANGE_SCREENSAVER_API_VERSION,
     .name = "denabase",
     .character_width = DENABASE_CHAR_WIDTH,
     .init = denabase_init,

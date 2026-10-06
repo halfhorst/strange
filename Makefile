@@ -31,6 +31,7 @@ TEST_TARGET = runtime_state_test
 TEST_OBJECTS = tests/cli_test.o tests/runtime_state_test.o tests/renderer_test.o tests/screensaver_registry_test.o tests/screensaver_loader_test.o tests/terminal_modes_test.o pty/state_machine.o pty/terminal_modes.o pty/watermark.o src/cli.o src/renderer.o src/screensaver_registry.o src/screensaver_loader.o src/lua_screensaver.o src/demos/denabase.o src/demos/digital_rain.o $(LUA_OBJECTS)
 
 EXAMPLES = examples/bounce$(PLUGIN_EXTENSION)
+TEST_FIXTURES = tests/fixtures/stale_api$(PLUGIN_EXTENSION)
 
 .PHONY: all clean debug examples test
 
@@ -41,7 +42,7 @@ examples: $(EXAMPLES)
 debug: CFLAGS += -g
 debug: $(TARGET)
 
-test: $(TEST_TARGET) $(EXAMPLES)
+test: $(TEST_TARGET) $(EXAMPLES) $(TEST_FIXTURES)
 	./$(TEST_TARGET)
 
 $(TARGET): $(OBJECTS)
@@ -56,6 +57,9 @@ $(LUA_DIR)/%.o: $(LUA_DIR)/%.c
 examples/%$(PLUGIN_EXTENSION): examples/%.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLUGIN_LDFLAGS) $< -o $@
 
+tests/fixtures/%$(PLUGIN_EXTENSION): tests/fixtures/%.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLUGIN_LDFLAGS) $< -o $@
+
 tests/%.o: tests/%.cc
 	$(CXX) $(CPPFLAGS) $(DEPFLAGS) $(GTEST_CPPFLAGS) $(CXXFLAGS) \
 		-DSTRANGE_PLUGIN_EXTENSION='"$(PLUGIN_EXTENSION)"' -c $< -o $@
@@ -68,4 +72,4 @@ $(TEST_TARGET): $(TEST_OBJECTS)
 clean:
 	rm -f main.o pty/*.o src/*.o src/demos/*.o tests/*.o strange $(TEST_TARGET) strangeland foo
 	rm -f main.d pty/*.d src/*.d src/demos/*.d tests/*.d
-	rm -f $(LUA_OBJECTS) $(EXAMPLES)
+	rm -f $(LUA_OBJECTS) $(EXAMPLES) $(TEST_FIXTURES)

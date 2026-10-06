@@ -122,6 +122,7 @@ static void digital_rain_cleanup(void *state) {
 }
 
 const struct strange_screensaver_descriptor strange_digital_rain_descriptor = {
+    .api_version = STRANGE_SCREENSAVER_API_VERSION,
     .name = "digital_rain",
     .character_width = DIGITAL_RAIN_CHAR_WIDTH,
     .init = digital_rain_init,

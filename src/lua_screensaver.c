@@ -17,7 +17,7 @@ static struct {
   int state_reference;
   char *name;
   struct strange_screensaver_descriptor descriptor;
-} loaded = {NULL, LUA_NOREF, LUA_NOREF, NULL, {NULL, 0, NULL, NULL, NULL}};
+} loaded = {NULL, LUA_NOREF, LUA_NOREF, NULL, {0, NULL, 0, NULL, NULL, NULL}};
 
 static void set_error(char *buffer, size_t buffer_size, const char *format, ...) {
   va_list args;
@@ -261,6 +261,7 @@ static int read_table_fields(lua_State *lua, const char *path,
   }
   lua_pop(lua, 1);
 
+  loaded.descriptor.api_version = STRANGE_SCREENSAVER_API_VERSION;
   loaded.descriptor.name = loaded.name;
   loaded.descriptor.character_width = (int)character_width;
   loaded.descriptor.init = lua_screensaver_init;

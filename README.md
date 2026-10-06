@@ -65,7 +65,9 @@ monotonic clock in seconds. See `examples/wave.lua`.
 
 A shared library exports a `struct strange_screensaver_descriptor` named
 `strange_screensaver_descriptor`, declared in `src/screensaver_registry.h`
-along with the drawing calls in `src/renderer.h`. `make examples` builds
+along with the drawing calls in `src/renderer.h`. Its `api_version` must be
+`STRANGE_SCREENSAVER_API_VERSION`; a library built against a different version
+is refused with a message asking for a rebuild. `make examples` builds
 `examples/bounce.c`, which shows the whole shape.
 
 A callback that returns -1, or a Lua error, turns the screensaver off for the

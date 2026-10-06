@@ -167,6 +167,14 @@ TEST_F(ScreensaverLoaderTest, SharedLibraryExportsARunnableDescriptor) {
   strange_screen_buffer_free(&buffer);
 }
 
+TEST_F(ScreensaverLoaderTest, SharedLibraryBuiltForAnotherApiVersionIsRefused) {
+  LoadedScreensaver stale(STRANGE_SCREENSAVER_RECORD_SOURCE_DYNAMIC,
+                          "tests/fixtures/stale_api" STRANGE_PLUGIN_EXTENSION);
+  EXPECT_FALSE(stale.loaded());
+  EXPECT_NE(std::string(stale.error).find("API version"), std::string::npos);
+  EXPECT_EQ(stale.descriptor, nullptr);
+}
+
 TEST_F(ScreensaverLoaderTest, SharedLibraryLoadErrorsNameTheFile) {
   LoadedScreensaver missing(STRANGE_SCREENSAVER_RECORD_SOURCE_DYNAMIC,
                             "examples/absent" STRANGE_PLUGIN_EXTENSION);
