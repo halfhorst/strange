@@ -15,6 +15,7 @@
 
 #define STRANGE_DISABLE_KEY 0x11
 #define STRANGE_POLL_INTERVAL_USEC 100000
+#define STRANGE_FRAME_INTERVAL_USEC 16666
 #define STRANGE_BUFFER_SIZE (64 * 1024)
 
 static struct {
@@ -29,6 +30,23 @@ static int monotonic_now(struct timespec *now) {
   }
 
   return 0;
+}
+
+static long frame_wait_usec(const struct timespec *frame_started) {
+  struct timespec now;
+  long elapsed_usec = 0;
+
+  if (clock_gettime(CLOCK_MONOTONIC, &now) == -1) {
+    return STRANGE_FRAME_INTERVAL_USEC;
+  }
+
+  elapsed_usec = (long)(now.tv_sec - frame_started->tv_sec) * 1000000L +
+                 (now.tv_nsec - frame_started->tv_nsec) / 1000L;
+  if (elapsed_usec >= STRANGE_FRAME_INTERVAL_USEC) {
+    return 0;
+  }
+
+  return STRANGE_FRAME_INTERVAL_USEC - elapsed_usec;
 }
 
 static int write_all(int fd, const char *buffer, size_t length) {
@@ -288,7 +306,10 @@ int strange_run(const struct strange_options *options) {
 
     struct timeval timeout;
     timeout.tv_sec = 0;
-    timeout.tv_usec = STRANGE_POLL_INTERVAL_USEC;
+    timeout.tv_usec =
+        machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE
+            ? frame_wait_usec(&now)
+            : STRANGE_POLL_INTERVAL_USEC;
 
     int ready = select(max_fd + 1, &read_fds, &write_fds, NULL, &timeout);
     if (ready < 0) {
