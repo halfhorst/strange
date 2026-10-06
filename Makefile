@@ -1,6 +1,7 @@
 CFLAGS = -std=c99 -Wall -Wextra -pedantic
 CXXFLAGS = -Wall -Wextra -pedantic -std=c++17
 CPPFLAGS = -I.
+DEPFLAGS = -MMD -MP
 LDFLAGS = -lm
 
 # glibc and musl hide POSIX under -std=c99 unless asked. The BSDs and macOS
@@ -31,13 +32,16 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
 
 tests/%.o: tests/%.cc
-	$(CXX) $(CPPFLAGS) $(GTEST_CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(DEPFLAGS) $(GTEST_CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+-include $(OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d)
 
 $(TEST_TARGET): $(TEST_OBJECTS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(GTEST_LDLIBS) $(LDFLAGS)
 
 clean:
 	rm -f main.o pty/*.o src/*.o src/demos/*.o tests/*.o strange $(TEST_TARGET) strangeland foo
+	rm -f main.d pty/*.d src/*.d src/demos/*.d tests/*.d
