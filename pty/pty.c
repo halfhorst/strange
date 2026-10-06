@@ -274,7 +274,7 @@ static void exec_login_shell_or_die(const char *shell_path,
 }
 
 int setup_pty_and_shell(void) {
-  char slave_name[128];
+  const char *slave_name = NULL;
   const char *shell_path = resolve_shell_path();
   struct terminal_state state;
 
@@ -305,8 +305,9 @@ int setup_pty_and_shell(void) {
     return -1;
   }
 
-  if (ptsname_r(master_fd, slave_name, sizeof(slave_name)) != 0) {
-    perror("ptsname_r");
+  slave_name = ptsname(master_fd);
+  if (slave_name == NULL) {
+    perror("ptsname");
     close_master_fd();
     return -1;
   }

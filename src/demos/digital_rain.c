@@ -92,7 +92,7 @@ static int digital_rain_update(
 
     for (int j = rain->streams[i].start_visible; j < visible_end; j++) {
       if (j >= 0) {
-        if (((float)rand() / RAND_MAX) < CHAR_SHUFFLE_RATE) {
+        if ((rand() / (double)RAND_MAX) < CHAR_SHUFFLE_RATE) {
           char character[DIGITAL_RAIN_CHAR_WIDTH];
 
           random_character(character);
@@ -170,7 +170,7 @@ static void free_streams(struct digital_rain_state *state) {
 }
 
 static void random_character(char *buffer) {
-  float draw = (float)rand() / RAND_MAX;
+  float draw = rand() / (double)RAND_MAX;
 
   if (draw < 0.45) {
     buffer[0] = (char)0xEF;
@@ -208,11 +208,11 @@ static void toggle_streams(struct digital_rain_state *state, int w,
                            int minimum_stream_length) {
   for (int i = 0; i < w; i++) {
     if (state->streams[i].end_visible == -1) {
-      if (((float)rand() / RAND_MAX) < STREAM_ACTIVATE_RATE) {
+      if ((rand() / (double)RAND_MAX) < STREAM_ACTIVATE_RATE) {
         state->streams[i].end_visible++;
       }
     } else if (state->streams[i].end_visible > minimum_stream_length) {
-      if (((float)rand() / RAND_MAX) < STREAM_SHUTDOWN_RATE) {
+      if ((rand() / (double)RAND_MAX) < STREAM_SHUTDOWN_RATE) {
         state->streams[i].start_visible++;
       }
     }

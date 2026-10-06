@@ -304,7 +304,7 @@ static int generate_random_sequence(size_t capacity, bool isDNA,
   float selection;
   for (size_t i = 0; i < capacity; i++) {
     rand_int = rand();
-    selection = (float) rand_int / RAND_MAX;
+    selection = rand_int / (double)RAND_MAX;
     if (selection < 0.2) {
       sequence_buffer[i] = 'G';
     } else if (0.2 <= selection && selection < 0.4) {

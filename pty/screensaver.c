@@ -93,7 +93,14 @@ void enable_raw_mode(void) {
   atexit(disable_raw_mode);
 
   struct termios raw = orig_termios;
-  cfmakeraw(&raw);
+  raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL |
+                   IXON);
+  raw.c_oflag &= ~OPOST;
+  raw.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+  raw.c_cflag &= ~(CSIZE | PARENB);
+  raw.c_cflag |= CS8;
+  raw.c_cc[VMIN] = 1;
+  raw.c_cc[VTIME] = 0;
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
   raw_mode_enabled = 1;
 }

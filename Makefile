@@ -1,7 +1,13 @@
-CFLAGS = -Wall -Wextra -pedantic
+CFLAGS = -std=c99 -Wall -Wextra -pedantic
 CXXFLAGS = -Wall -Wextra -pedantic -std=c++17
 CPPFLAGS = -I.
 LDFLAGS = -lm
+
+# glibc and musl hide POSIX under -std=c99 unless asked. The BSDs and macOS
+# expose everything by default and hide SIGWINCH and TIOCGWINSZ when asked.
+ifeq ($(shell uname -s),Linux)
+CPPFLAGS += -D_XOPEN_SOURCE=700
+endif
 GTEST_PREFIX ?= /opt/homebrew/opt/googletest
 GTEST_CPPFLAGS = -I$(GTEST_PREFIX)/include
 GTEST_LDLIBS = -L$(GTEST_PREFIX)/lib -lgtest -lgtest_main -pthread
