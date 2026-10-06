@@ -1,7 +1,6 @@
 #include "runtime.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
@@ -16,7 +15,12 @@
 
 #define STRANGE_DISABLE_KEY 0x11
 #define STRANGE_POLL_INTERVAL_USEC 100000
-#define STRANGE_BUFFER_SIZE (1024 * 1024)
+#define STRANGE_BUFFER_SIZE (64 * 1024)
+
+static struct {
+  char bytes[STRANGE_BUFFER_SIZE];
+  size_t length;
+} pending_input;
 
 static int monotonic_now(struct timespec *now) {
   if (clock_gettime(CLOCK_MONOTONIC, now) == -1) {
@@ -39,12 +43,34 @@ static int write_all(int fd, const char *buffer, size_t length) {
     if (result == -1 && errno == EINTR) {
       continue;
     }
+    return -1;
+  }
+
+  return 0;
+}
+
+static int flush_pending_input(void) {
+  size_t written = 0;
+
+  while (written < pending_input.length) {
+    ssize_t result = write(master_fd, pending_input.bytes + written,
+                           pending_input.length - written);
+    if (result > 0) {
+      written += (size_t)result;
+      continue;
+    }
+    if (result == -1 && errno == EINTR) {
+      continue;
+    }
     if (result == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-      return 0;
+      break;
     }
     return -1;
   }
 
+  pending_input.length -= written;
+  memmove(pending_input.bytes, pending_input.bytes + written,
+          pending_input.length);
   return 0;
 }
 
@@ -97,7 +123,13 @@ static int forward_input_slice(struct strange_state_machine *machine,
     return -1;
   }
 
-  if (write_all(master_fd, buffer, length) == -1) {
+  if (length > sizeof(pending_input.bytes) - pending_input.length) {
+    length = sizeof(pending_input.bytes) - pending_input.length;
+  }
+  memcpy(pending_input.bytes + pending_input.length, buffer, length);
+  pending_input.length += length;
+
+  if (flush_pending_input() == -1) {
     perror("write");
     return -1;
   }
@@ -171,7 +203,6 @@ static int sync_resize_if_needed(enum strange_runtime_state state,
 
 int strange_run(const struct strange_options *options) {
   int status = 1;
-  int stdin_flags = -1;
   int runtime_status = 0;
   char buffer[STRANGE_BUFFER_SIZE];
   struct strange_visible_screen visible_screen = {0};
@@ -201,13 +232,7 @@ int strange_run(const struct strange_options *options) {
     goto cleanup;
   }
 
-  stdin_flags = fcntl(STDIN_FILENO, F_GETFL);
-  if (stdin_flags == -1 ||
-      fcntl(STDIN_FILENO, F_SETFL, stdin_flags | O_NONBLOCK) == -1) {
-    perror("fcntl");
-    goto cleanup;
-  }
-
+  pending_input.length = 0;
   enable_raw_mode();
 
   if (monotonic_now(&now) == -1) {
@@ -217,7 +242,9 @@ int strange_run(const struct strange_options *options) {
 
   while (machine.state != STRANGE_RUNTIME_STATE_SHUTTING_DOWN) {
     fd_set read_fds;
+    fd_set write_fds;
     int max_fd = STDIN_FILENO;
+    size_t input_capacity = 0;
 
     if (monotonic_now(&now) == -1) {
       goto cleanup;
@@ -242,10 +269,18 @@ int strange_run(const struct strange_options *options) {
       render_screensaver_frame(&now);
     }
 
+    input_capacity = sizeof(pending_input.bytes) - pending_input.length;
+
     FD_ZERO(&read_fds);
-    FD_SET(STDIN_FILENO, &read_fds);
+    FD_ZERO(&write_fds);
+    if (input_capacity > 0) {
+      FD_SET(STDIN_FILENO, &read_fds);
+    }
     if (master_fd >= 0) {
       FD_SET(master_fd, &read_fds);
+      if (pending_input.length > 0) {
+        FD_SET(master_fd, &write_fds);
+      }
       if (master_fd > max_fd) {
         max_fd = master_fd;
       }
@@ -255,7 +290,7 @@ int strange_run(const struct strange_options *options) {
     timeout.tv_sec = 0;
     timeout.tv_usec = STRANGE_POLL_INTERVAL_USEC;
 
-    int ready = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+    int ready = select(max_fd + 1, &read_fds, &write_fds, NULL, &timeout);
     if (ready < 0) {
       if (errno == EINTR) {
         continue;
@@ -264,8 +299,14 @@ int strange_run(const struct strange_options *options) {
       goto cleanup;
     }
 
+    if (ready > 0 && master_fd >= 0 && FD_ISSET(master_fd, &write_fds) &&
+        flush_pending_input() == -1) {
+      perror("write");
+      goto cleanup;
+    }
+
     if (ready > 0 && FD_ISSET(STDIN_FILENO, &read_fds)) {
-      ssize_t bytes = read(STDIN_FILENO, buffer, sizeof(buffer));
+      ssize_t bytes = read(STDIN_FILENO, buffer, input_capacity);
       if (bytes > 0) {
         if (monotonic_now(&now) == -1) {
           goto cleanup;
@@ -333,12 +374,6 @@ cleanup:
   }
   strange_visible_screen_destroy(&visible_screen);
   disable_raw_mode();
-
-  if (stdin_flags != -1 && fcntl(STDIN_FILENO, F_SETFL, stdin_flags) == -1) {
-    perror("fcntl");
-    status = 1;
-  }
-
   cleanup_pty();
 
   if (status != 0) {
