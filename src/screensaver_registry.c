@@ -17,6 +17,21 @@ static const struct strange_screensaver_descriptor *const builtin_descriptors[] 
         &strange_digital_rain_descriptor,
 };
 
+static char screensaver_error[256];
+
+void strange_screensaver_set_error(const char *format, ...) {
+  va_list args;
+
+  va_start(args, format);
+  vsnprintf(screensaver_error, sizeof(screensaver_error), format, args);
+  va_end(args);
+}
+
+const char *strange_screensaver_error(void) {
+  return screensaver_error[0] != '\0' ? screensaver_error
+                                      : "the screensaver reported a failure";
+}
+
 static void set_error(char *buffer, size_t buffer_size, const char *format, ...) {
   va_list args;
 
@@ -369,6 +384,7 @@ int strange_screensaver_instance_init(
   }
 
   memset(instance, 0, sizeof(*instance));
+  screensaver_error[0] = '\0';
   if (descriptor->init != NULL && descriptor->init(&state, buffer) == -1) {
     return -1;
   }

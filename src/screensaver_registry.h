@@ -6,6 +6,10 @@
 
 #include "renderer.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL "strange_screensaver_descriptor"
 #define STRANGE_LUA_DESCRIPTOR_NAME_FIELD "name"
 #define STRANGE_LUA_DESCRIPTOR_CHARACTER_WIDTH_FIELD "character_width"
@@ -58,11 +62,16 @@ struct strange_screensaver_catalog {
 };
 
 /*
-  Native shared libraries export a descriptor symbol with the name in
-  STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL. Lua screensavers return a descriptor table
-  using the field names above; only `name` is required and `character_width`
-  defaults to 1 when omitted.
+  Native shared libraries export a descriptor with the name in
+  STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL. Only `name` is required, and
+  `character_width` defaults to 1 when it is left at zero. Lua screensavers
+  return a table using the field names above; see lua_screensaver.h.
+
+  Callbacks return -1 to report failure, which ends the screensaver for the
+  session. They can describe the failure with strange_screensaver_set_error.
 */
+void strange_screensaver_set_error(const char *format, ...);
+const char *strange_screensaver_error(void);
 int strange_screensaver_descriptor_validate(
     const struct strange_screensaver_descriptor *descriptor);
 int strange_screensaver_character_width(
@@ -88,5 +97,9 @@ const struct strange_screensaver_descriptor *const *strange_builtin_screensavers
     size_t *count);
 const struct strange_screensaver_descriptor *strange_builtin_screensaver_find(
     const char *name);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

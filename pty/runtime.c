@@ -174,31 +174,32 @@ static int exit_screensaver(struct strange_terminal_modes *modes) {
   return 0;
 }
 
-static int apply_transition_effects(
-    const struct strange_state_transition *transition,
-    const struct timespec *now,
-    struct strange_terminal_modes *modes) {
-  if (transition->entered_screensaver) {
-    drew_over_child_screen = modes->alternate_screen;
-    if (enter_screensaver(!drew_over_child_screen) == -1) {
-      perror("screensaver");
-      return -1;
-    }
-    if (drew_over_child_screen && strange_sync_pty_window_size(1) == -1) {
-      perror("ioctl");
-      return -1;
-    }
-  }
-  if (transition->exited_screensaver &&
-      exit_screensaver(modes) == -1) {
-    return -1;
-  }
-  if (transition->current_state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
-      render_screensaver_frame(now) == -1) {
+// A screensaver that fails is turned off for the session rather than taking
+// the shell down with it.
+static int disable_failed_screensaver(struct strange_state_machine *machine,
+                                      const struct timespec *now,
+                                      struct strange_terminal_modes *modes) {
+  struct strange_state_transition transition =
+      strange_state_machine_handle_event(machine,
+                                         STRANGE_RUNTIME_EVENT_DISABLE, now);
+
+  if (transition.exited_screensaver && exit_screensaver(modes) == -1) {
     return -1;
   }
 
+  fprintf(stderr, "\r\nstrange: screensaver disabled: %s\r\n",
+          strange_screensaver_error());
   return 0;
+}
+
+static int render_frame(struct strange_state_machine *machine,
+                        const struct timespec *now,
+                        struct strange_terminal_modes *modes) {
+  if (render_screensaver_frame(now) == 0) {
+    return 0;
+  }
+
+  return disable_failed_screensaver(machine, now, modes);
 }
 
 static int handle_runtime_event(struct strange_state_machine *machine,
@@ -207,7 +208,25 @@ static int handle_runtime_event(struct strange_state_machine *machine,
                                 struct strange_terminal_modes *modes) {
   struct strange_state_transition transition =
       strange_state_machine_handle_event(machine, event, now);
-  return apply_transition_effects(&transition, now, modes);
+
+  if (transition.entered_screensaver) {
+    drew_over_child_screen = modes->alternate_screen;
+    if (enter_screensaver(!drew_over_child_screen) == -1) {
+      return disable_failed_screensaver(machine, now, modes);
+    }
+    if (drew_over_child_screen && strange_sync_pty_window_size(1) == -1) {
+      perror("ioctl");
+      return -1;
+    }
+  }
+  if (transition.exited_screensaver && exit_screensaver(modes) == -1) {
+    return -1;
+  }
+  if (transition.current_state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
+    return render_frame(machine, now, modes);
+  }
+
+  return 0;
 }
 
 static int forward_input_slice(struct strange_state_machine *machine,
@@ -272,8 +291,9 @@ static int handle_stdin_buffer(struct strange_state_machine *machine,
                              length - slice_start, now, modes);
 }
 
-static int sync_resize_if_needed(enum strange_runtime_state state,
-                                 const struct timespec *now) {
+static int sync_resize_if_needed(struct strange_state_machine *machine,
+                                 const struct timespec *now,
+                                 struct strange_terminal_modes *modes) {
   if (!strange_consume_resize_event()) {
     return 0;
   }
@@ -281,9 +301,8 @@ static int sync_resize_if_needed(enum strange_runtime_state state,
     perror("ioctl");
     return -1;
   }
-  if (state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
-      render_screensaver_frame(now) == -1) {
-    return -1;
+  if (machine->state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
+    return render_frame(machine, now, modes);
   }
 
   return 0;
@@ -333,7 +352,7 @@ int strange_run(const struct strange_options *options) {
       goto cleanup;
     }
 
-    if (sync_resize_if_needed(machine.state, &now) == -1) {
+    if (sync_resize_if_needed(&machine, &now, &modes) == -1) {
       goto cleanup;
     }
 
@@ -348,8 +367,9 @@ int strange_run(const struct strange_options *options) {
                                &modes) == -1) {
         goto cleanup;
       }
-    } else if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
-      render_screensaver_frame(&now);
+    } else if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
+               render_frame(&machine, &now, &modes) == -1) {
+      goto cleanup;
     }
 
     input_capacity = sizeof(pending_input.bytes) - pending_input.length;
