@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "screensaver_loader.h"
 #include "screensaver_registry.h"
 
 static void set_error(char *buffer, size_t buffer_size, const char *format, ...) {
@@ -154,6 +155,7 @@ int strange_cli_resolve_screensaver(
     char *error_buffer, size_t error_buffer_size) {
   struct strange_screensaver_catalog catalog = {0};
   const struct strange_screensaver_record *record = NULL;
+  int result = 0;
 
   if (options == NULL || descriptor == NULL) {
     set_error(error_buffer, error_buffer_size, "invalid CLI resolution request");
@@ -179,16 +181,10 @@ int strange_cli_resolve_screensaver(
       strange_screensaver_catalog_free(&catalog);
       return -1;
     }
-    if (record->source != STRANGE_SCREENSAVER_RECORD_SOURCE_BUILTIN) {
-      set_error(error_buffer, error_buffer_size,
-                "user screensaver loading is not implemented yet: %s",
-                options->screensaver_name);
-      strange_screensaver_catalog_free(&catalog);
-      return -1;
-    }
-    *descriptor = record->descriptor;
+    result = strange_screensaver_load(record, descriptor, error_buffer,
+                                      error_buffer_size);
     strange_screensaver_catalog_free(&catalog);
-    return 0;
+    return result;
   }
 
   if (options->command == STRANGE_CLI_COMMAND_RUN_RANDOM) {
@@ -209,16 +205,10 @@ int strange_cli_resolve_screensaver(
       strange_screensaver_catalog_free(&catalog);
       return -1;
     }
-    if (record->source != STRANGE_SCREENSAVER_RECORD_SOURCE_BUILTIN) {
-      set_error(error_buffer, error_buffer_size,
-                "user screensaver loading is not implemented yet: %s",
-                record->name);
-      strange_screensaver_catalog_free(&catalog);
-      return -1;
-    }
-    *descriptor = record->descriptor;
+    result = strange_screensaver_load(record, descriptor, error_buffer,
+                                      error_buffer_size);
     strange_screensaver_catalog_free(&catalog);
-    return 0;
+    return result;
   }
 
   strange_screensaver_catalog_free(&catalog);

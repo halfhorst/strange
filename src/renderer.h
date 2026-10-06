@@ -3,6 +3,10 @@
 #ifndef RENDERER_H_
 #define RENDERER_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // The padding character used by the renderer. Non-printing C0 control seems to
 // have inconsistent behavior. I trust \0 to never represent a character. The
 // dirty trick is printing past it when rendering.
@@ -59,5 +63,9 @@ void write_to_buffer(struct ScreenBuffer *sbuffer, const char *chars,
                      int num_chars, int x, int y);
 void write_string_to_buffer(struct ScreenBuffer *sbuffer, const char *text,
                             int x, int y);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // RENDERER_H_

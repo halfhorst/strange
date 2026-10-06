@@ -9,60 +9,13 @@
 
 #include <gtest/gtest.h>
 
+#include "tests/scoped_home.h"
+
 extern "C" {
 #include "src/cli.h"
 }
 
 namespace {
-
-class ScopedHomeOverride {
- public:
-  ScopedHomeOverride() {
-    const char *existing_home = std::getenv("HOME");
-    if (existing_home != nullptr) {
-      had_home_ = true;
-      original_home_ = existing_home;
-    }
-
-    std::string home_template =
-        (std::filesystem::current_path() / ".tmp-home-XXXXXX").string();
-    std::vector<char> buffer(home_template.begin(), home_template.end());
-    buffer.push_back('\0');
-
-    char *created = mkdtemp(buffer.data());
-    EXPECT_NE(created, nullptr);
-    if (created != nullptr) {
-      home_path_ = created;
-      EXPECT_EQ(setenv("HOME", created, 1), 0);
-    }
-  }
-
-  ~ScopedHomeOverride() {
-    if (!home_path_.empty()) {
-      std::filesystem::remove_all(home_path_);
-    }
-
-    if (had_home_) {
-      setenv("HOME", original_home_.c_str(), 1);
-    } else {
-      unsetenv("HOME");
-    }
-  }
-
-  std::filesystem::path screensaver_dir() const { return home_path_ / ".strange"; }
-
-  void WriteFile(const std::filesystem::path &path,
-                 const std::string &contents = "") const {
-    std::filesystem::create_directories(path.parent_path());
-    std::ofstream stream(path);
-    stream << contents;
-  }
-
- private:
-  bool had_home_ = false;
-  std::string original_home_;
-  std::filesystem::path home_path_;
-};
 
 std::string CaptureListOutput() {
   char error[256] = {0};
@@ -216,7 +169,7 @@ TEST(CliTest, ResolvesNamedBuiltInScreensaver) {
   EXPECT_STREQ(descriptor->name, "denabase");
 }
 
-TEST(CliTest, RejectsUserOverrideUntilUserLoaderExists) {
+TEST(CliTest, UserScreensaverOverridesBuiltinOfTheSameName) {
   ScopedHomeOverride home;
   char arg0[] = "strange";
   char arg1[] = "denabase";
@@ -225,13 +178,35 @@ TEST(CliTest, RejectsUserOverrideUntilUserLoaderExists) {
   const strange_screensaver_descriptor *descriptor = nullptr;
   char error[256] = {0};
 
-  home.WriteFile(home.screensaver_dir() / "denabase.lua", "return {}");
+  home.WriteFile(home.screensaver_dir() / "denabase.lua",
+                 "return { character_width = 2 }");
+
+  ASSERT_EQ(strange_cli_parse(2, argv, &options, error, sizeof(error)), 0);
+  ASSERT_EQ(strange_cli_resolve_screensaver(&options, &descriptor, error,
+                                            sizeof(error)),
+            0)
+      << error;
+  ASSERT_NE(descriptor, nullptr);
+  EXPECT_STREQ(descriptor->name, "denabase");
+  EXPECT_EQ(descriptor->character_width, 2);
+}
+
+TEST(CliTest, ReportsUserScreensaverThatFailsToLoad) {
+  ScopedHomeOverride home;
+  char arg0[] = "strange";
+  char arg1[] = "broken";
+  char *argv[] = {arg0, arg1};
+  strange_cli_options options = {};
+  const strange_screensaver_descriptor *descriptor = nullptr;
+  char error[256] = {0};
+
+  home.WriteFile(home.screensaver_dir() / "broken.lua", "return 7");
 
   ASSERT_EQ(strange_cli_parse(2, argv, &options, error, sizeof(error)), 0);
   ASSERT_EQ(strange_cli_resolve_screensaver(&options, &descriptor, error,
                                             sizeof(error)),
             -1);
-  EXPECT_NE(std::string(error).find("not implemented"), std::string::npos);
+  EXPECT_NE(std::string(error).find("must return a table"), std::string::npos);
   EXPECT_EQ(descriptor, nullptr);
 }
 
