@@ -19,15 +19,19 @@ on my second monitor that is calming and visual. `strange` fits that role.
 
 `strange` is a PTY-backed terminal wrapper. Run it as the terminal session you
 want to monitor. It starts a child shell, forwards input and output during
-normal use, and activates a screensaver path after inactivity.
+normal use, and starts a screensaver after a period of inactivity. Any key
+wakes it and restores the screen; `Ctrl-Q` disables it for the session.
 
-The renderer code under `src/` is retained as implementation material for the
-next integration steps, but it is no longer presented as a supported standalone
-runtime.
+    strange digital_rain
+    strange --timeout 120 denabase
+    strange --random denabase digital_rain
+    strange --list
 
 ## Building
 
-Run `make` to build the supported `strange` binary.
+Run `make` to build `strange` and `make test` to run the tests, which need
+GoogleTest. The code is C99 and uses POSIX.1-2008 plus `SIGWINCH` and the
+`TIOCGWINSZ`/`TIOCSWINSZ` ioctls. The Makefile needs GNU make.
 
 ## Similar Projects
 
@@ -39,7 +43,6 @@ rterm. It was helpful to look at and the raymarched scene is really nice.
     * SDF Rotating Cube
     * Metaballs
 * Add lua bindings and embed an interpreter
-* Hot reload screensavers from home directory
-    * either screensaver SOs or lua scripts
+* Load screensavers from `~/.strange/` (shared libraries or lua scripts).
+  They are discovered and listed today but cannot be run yet.
 * Optional watermark in the terminal to know you are in "screensaver mode"
-* Watermark during screensaver indicating any key will resume, and special key to quit altogether
