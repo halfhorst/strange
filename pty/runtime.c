@@ -362,6 +362,11 @@ int strange_run(const struct strange_options *options) {
       break;
     }
 
+    if (!options->cover_fullscreen && modes.alternate_screen &&
+        machine.state == STRANGE_RUNTIME_STATE_PASSTHROUGH) {
+      handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_HOLD, &now, &modes);
+    }
+
     if (strange_state_machine_timeout_due(&machine, &now)) {
       if (handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_TIMEOUT, &now,
                                &modes) == -1) {

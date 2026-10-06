@@ -145,6 +145,23 @@ TEST(RuntimeStateMachineTest,
   EXPECT_TRUE(input_transition.recorded_activity);
 }
 
+TEST(RuntimeStateMachineTest, HoldPostponesTheTimeoutWithoutChangingState) {
+  strange_state_machine machine;
+  const timespec start = Seconds(0);
+  const timespec hold_time = Seconds(9);
+  const timespec before_timeout = Seconds(11);
+  const timespec at_timeout = Seconds(12);
+
+  strange_state_machine_init(&machine, 3, &start);
+
+  const strange_state_transition transition = strange_state_machine_handle_event(
+      &machine, STRANGE_RUNTIME_EVENT_HOLD, &hold_time);
+
+  EXPECT_FALSE(transition.state_changed);
+  EXPECT_FALSE(strange_state_machine_timeout_due(&machine, &before_timeout));
+  EXPECT_TRUE(strange_state_machine_timeout_due(&machine, &at_timeout));
+}
+
 TEST(RuntimeStateMachineTest, OutputOverflowLeavesScreensaverAndRestartsTimer) {
   strange_state_machine machine;
   const timespec start = Seconds(0);

@@ -169,6 +169,34 @@ TEST(CliTest, ResolvesNamedBuiltInScreensaver) {
   EXPECT_STREQ(descriptor->name, "denabase");
 }
 
+TEST(CliTest, CoverFullscreenIsOffUnlessGivenFirst) {
+  char arg0[] = "strange";
+  char flag[] = "--cover-fullscreen";
+  char random[] = "--random";
+  char name[] = "denabase";
+  strange_cli_options options = {};
+  char error[256] = {0};
+
+  char *plain[] = {arg0, name};
+  ASSERT_EQ(strange_cli_parse(2, plain, &options, error, sizeof(error)), 0);
+  EXPECT_FALSE(options.cover_fullscreen);
+
+  char *named[] = {arg0, flag, name};
+  ASSERT_EQ(strange_cli_parse(3, named, &options, error, sizeof(error)), 0);
+  EXPECT_TRUE(options.cover_fullscreen);
+  EXPECT_STREQ(options.screensaver_name, "denabase");
+
+  char *with_random[] = {arg0, flag, random, name};
+  ASSERT_EQ(strange_cli_parse(4, with_random, &options, error, sizeof(error)),
+            0);
+  EXPECT_TRUE(options.cover_fullscreen);
+  EXPECT_EQ(options.command, STRANGE_CLI_COMMAND_RUN_RANDOM);
+
+  char *misplaced[] = {arg0, name, flag};
+  EXPECT_EQ(strange_cli_parse(3, misplaced, &options, error, sizeof(error)),
+            -1);
+}
+
 TEST(CliTest, UserScreensaverOverridesBuiltinOfTheSameName) {
   ScopedHomeOverride home;
   char arg0[] = "strange";

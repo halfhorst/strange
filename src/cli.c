@@ -58,6 +58,16 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
   }
 
   for (int index = 1; index < argc; ++index) {
+    if (strcmp(argv[index], "--cover-fullscreen") == 0) {
+      if (index != 1) {
+        set_error(error_buffer, error_buffer_size,
+                  "`--cover-fullscreen` must be the first argument");
+        return -1;
+      }
+      options->cover_fullscreen = 1;
+      continue;
+    }
+
     if (strcmp(argv[index], "--timeout") == 0) {
       if (saw_timeout) {
         set_error(error_buffer, error_buffer_size,
@@ -95,7 +105,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
     }
 
     if (strcmp(argv[index], "--random") == 0) {
-      if (index != 1 ||
+      if (index != 1 + options->cover_fullscreen ||
           options->timeout_seconds != STRANGE_DEFAULT_TIMEOUT_SECONDS) {
         set_error(error_buffer, error_buffer_size,
                   "`--random` only supports `strange --random "
@@ -217,9 +227,13 @@ int strange_cli_resolve_screensaver(
 }
 
 void strange_cli_print_usage(FILE *stream, const char *prog_name) {
-  fprintf(stream, "Usage: %s <screensaver-name>\n", prog_name);
-  fprintf(stream, "       %s --random <screensaver-name>...\n", prog_name);
-  fprintf(stream, "       %s --timeout <seconds> <screensaver-name>\n",
+  fprintf(stream, "Usage: %s [--cover-fullscreen] <screensaver-name>\n",
+          prog_name);
+  fprintf(stream, "       %s [--cover-fullscreen] --random "
+                  "<screensaver-name>...\n",
+          prog_name);
+  fprintf(stream, "       %s [--cover-fullscreen] --timeout <seconds> "
+                  "<screensaver-name>\n",
           prog_name);
   fprintf(stream, "       %s --list\n", prog_name);
   fprintf(stream, "       %s -h | --help\n", prog_name);
@@ -227,6 +241,10 @@ void strange_cli_print_usage(FILE *stream, const char *prog_name) {
   fprintf(stream, "  --timeout seconds: inactivity before the screensaver "
                   "starts (default: %d)\n",
           STRANGE_DEFAULT_TIMEOUT_SECONDS);
+  fprintf(stream, "  --cover-fullscreen: also start over full-screen programs "
+                  "such as vim or top,\n"
+                  "                      which otherwise hold the screensaver "
+                  "off while they run\n");
 }
 
 int strange_cli_print_list(FILE *stream, char *error_buffer,

@@ -27,6 +27,11 @@ wakes it and restores the screen; `Ctrl-Q` disables it for the session.
     strange --random denabase digital_rain
     strange --list
 
+Only keystrokes count as activity, so output from a running job neither wakes
+the screensaver nor holds it off; whatever was printed meanwhile appears on
+waking. A full-screen program such as `vim`, `less` or `top` does hold it off
+while it runs. Pass `--cover-fullscreen` first to start over those too.
+
 ## Writing screensavers
 
 `strange --list` shows the built-in screensavers and any found in

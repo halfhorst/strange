@@ -80,6 +80,10 @@ struct strange_state_transition strange_state_machine_handle_event(
       machine->state = STRANGE_RUNTIME_STATE_PASSTHROUGH;
     }
     break;
+  case STRANGE_RUNTIME_EVENT_HOLD:
+    machine->last_activity_at = *now;
+    recorded_activity = 1;
+    break;
   case STRANGE_RUNTIME_EVENT_TIMEOUT:
     if (machine->state == STRANGE_RUNTIME_STATE_PASSTHROUGH) {
       machine->state = STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE;

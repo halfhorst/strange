@@ -7,6 +7,8 @@ struct strange_screensaver_descriptor;
 
 struct strange_options {
   int timeout_seconds;
+  // Start the screensaver even while a full-screen program is running.
+  int cover_fullscreen;
   const struct strange_screensaver_descriptor *screensaver_descriptor;
 };
 
