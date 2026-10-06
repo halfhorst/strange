@@ -73,7 +73,7 @@ struct strange_state_transition strange_state_machine_handle_event(
 
   switch (event) {
   case STRANGE_RUNTIME_EVENT_USER_INPUT:
-  case STRANGE_RUNTIME_EVENT_PTY_OUTPUT:
+  case STRANGE_RUNTIME_EVENT_OUTPUT_OVERFLOW:
     machine->last_activity_at = *now;
     recorded_activity = 1;
     if (machine->state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {

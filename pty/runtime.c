@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
 #include <sys/wait.h>
@@ -17,11 +18,19 @@
 #define STRANGE_POLL_INTERVAL_USEC 100000
 #define STRANGE_FRAME_INTERVAL_USEC 16666
 #define STRANGE_BUFFER_SIZE (64 * 1024)
+#define STRANGE_HELD_OUTPUT_LIMIT (16 * 1024 * 1024)
 
 static struct {
   char bytes[STRANGE_BUFFER_SIZE];
   size_t length;
 } pending_input;
+
+// Shell output that arrived while the screensaver was showing.
+static struct {
+  char *bytes;
+  size_t length;
+  size_t capacity;
+} held_output;
 
 static int monotonic_now(struct timespec *now) {
   if (clock_gettime(CLOCK_MONOTONIC, now) == -1) {
@@ -92,6 +101,68 @@ static int flush_pending_input(void) {
   return 0;
 }
 
+static int forward_output(struct strange_visible_screen *visible_screen,
+                          const char *buffer, size_t length) {
+  if (write_all(STDOUT_FILENO, buffer, length) == -1) {
+    perror("write");
+    return -1;
+  }
+
+  return strange_visible_screen_write(visible_screen, buffer, length);
+}
+
+static int hold_output(const char *buffer, size_t length) {
+  size_t capacity = held_output.capacity;
+  char *bytes = NULL;
+
+  if (length > STRANGE_HELD_OUTPUT_LIMIT - held_output.length) {
+    return -1;
+  }
+
+  if (capacity == 0) {
+    capacity = STRANGE_BUFFER_SIZE;
+  }
+  while (capacity - held_output.length < length) {
+    capacity *= 2;
+  }
+  if (capacity != held_output.capacity) {
+    bytes = realloc(held_output.bytes, capacity);
+    if (bytes == NULL) {
+      return -1;
+    }
+    held_output.bytes = bytes;
+    held_output.capacity = capacity;
+  }
+
+  memcpy(held_output.bytes + held_output.length, buffer, length);
+  held_output.length += length;
+  return 0;
+}
+
+static int release_held_output(struct strange_visible_screen *visible_screen) {
+  int result = 0;
+
+  if (held_output.length > 0) {
+    result = forward_output(visible_screen, held_output.bytes,
+                            held_output.length);
+  }
+
+  free(held_output.bytes);
+  memset(&held_output, 0, sizeof(held_output));
+  return result;
+}
+
+static int exit_screensaver(struct strange_visible_screen *visible_screen) {
+  leave_screensaver();
+  if (strange_visible_screen_restore_to_fd(visible_screen, STDOUT_FILENO) ==
+      -1) {
+    perror("restore");
+    return -1;
+  }
+
+  return release_held_output(visible_screen);
+}
+
 static int apply_transition_effects(
     const struct strange_state_transition *transition,
     const struct timespec *now,
@@ -103,13 +174,9 @@ static int apply_transition_effects(
       return -1;
     }
   }
-  if (transition->exited_screensaver) {
-    leave_screensaver();
-    if (strange_visible_screen_restore_to_fd(visible_screen, STDOUT_FILENO) ==
-        -1) {
-      perror("restore");
-      return -1;
-    }
+  if (transition->exited_screensaver &&
+      exit_screensaver(visible_screen) == -1) {
+    return -1;
   }
   if (transition->current_state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
       render_screensaver_frame(now) == -1) {
@@ -251,6 +318,7 @@ int strange_run(const struct strange_options *options) {
   }
 
   pending_input.length = 0;
+  memset(&held_output, 0, sizeof(held_output));
   enable_raw_mode();
 
   if (monotonic_now(&now) == -1) {
@@ -351,17 +419,17 @@ int strange_run(const struct strange_options *options) {
         if (monotonic_now(&now) == -1) {
           goto cleanup;
         }
-        if (handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_PTY_OUTPUT,
-                                 &now, &visible_screen) == -1) {
+        if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
+            hold_output(buffer, (size_t)bytes) == 0) {
+          continue;
+        }
+        if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE &&
+            handle_runtime_event(&machine,
+                                 STRANGE_RUNTIME_EVENT_OUTPUT_OVERFLOW, &now,
+                                 &visible_screen) == -1) {
           goto cleanup;
         }
-
-        if (write_all(STDOUT_FILENO, buffer, (size_t)bytes) == -1) {
-          perror("write");
-          goto cleanup;
-        }
-        if (strange_visible_screen_write(&visible_screen, buffer,
-                                         (size_t)bytes) == -1) {
+        if (forward_output(&visible_screen, buffer, (size_t)bytes) == -1) {
           goto cleanup;
         }
       } else if (bytes == 0 || (bytes < 0 && errno == EIO)) {
@@ -391,7 +459,7 @@ int strange_run(const struct strange_options *options) {
 
 cleanup:
   if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
-    leave_screensaver();
+    exit_screensaver(&visible_screen);
   }
   strange_visible_screen_destroy(&visible_screen);
   disable_raw_mode();
