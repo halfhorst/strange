@@ -5,16 +5,16 @@
 #include "src/renderer.h"
 #include "watermark.h"
 
-static void write_right_aligned(struct ScreenBuffer *buffer, const char *line,
-                                int row) {
+static void write_right_aligned(struct strange_screen_buffer *buffer,
+                                const char *line, int row) {
   int length = (int)strlen(line);
 
-  write_string_to_buffer(buffer, line, length < buffer->w ? buffer->w - length : 0,
-                         row);
+  strange_screen_buffer_write_string(
+      buffer, line, length < buffer->w ? buffer->w - length : 0, row);
 }
 
-void render_screensaver_watermark(struct ScreenBuffer *buffer, int preview,
-                                  int disable_key) {
+void strange_watermark_render(struct strange_screen_buffer *buffer, int preview,
+                              int disable_key) {
   char key_label[16];
   char disable_line[40];
 

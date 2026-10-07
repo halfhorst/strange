@@ -87,7 +87,7 @@ static int flush_pending_input(void) {
   size_t written = 0;
 
   while (written < pending_input.length) {
-    ssize_t result = write(master_fd, pending_input.bytes + written,
+    ssize_t result = write(strange_pty_master_fd, pending_input.bytes + written,
                            pending_input.length - written);
     if (result > 0) {
       written += (size_t)result;
@@ -161,14 +161,14 @@ static int release_held_output(struct strange_terminal_modes *modes) {
 }
 
 static int exit_screensaver(struct strange_terminal_modes *modes) {
-  leave_screensaver(modes->cursor_visible);
+  strange_screensaver_leave(modes->cursor_visible);
   if (release_held_output(modes) == -1) {
     return -1;
   }
 
   if (drew_over_child_screen) {
     drew_over_child_screen = 0;
-    if (strange_sync_pty_window_size(0) == -1) {
+    if (strange_pty_sync_window_size(0) == -1) {
       perror("ioctl");
       return -1;
     }
@@ -198,7 +198,7 @@ static int disable_failed_screensaver(struct strange_state_machine *machine,
 static int render_frame(struct strange_state_machine *machine,
                         const struct timespec *now,
                         struct strange_terminal_modes *modes) {
-  if (render_screensaver_frame(now) == 0) {
+  if (strange_screensaver_render_frame(now) == 0) {
     return 0;
   }
 
@@ -214,10 +214,10 @@ static int handle_runtime_event(struct strange_state_machine *machine,
 
   if (transition.entered_screensaver) {
     drew_over_child_screen = modes->alternate_screen;
-    if (enter_screensaver(!drew_over_child_screen) == -1) {
+    if (strange_screensaver_enter(!drew_over_child_screen) == -1) {
       return disable_failed_screensaver(machine, now, modes);
     }
-    if (drew_over_child_screen && strange_sync_pty_window_size(1) == -1) {
+    if (drew_over_child_screen && strange_pty_sync_window_size(1) == -1) {
       perror("ioctl");
       return -1;
     }
@@ -268,7 +268,7 @@ static void show_notice(const char *text) {
   int column = 1;
   int length = 0;
 
-  if (strange_get_terminal_size(STDOUT_FILENO, &w, &h) == -1) {
+  if (strange_terminal_size(STDOUT_FILENO, &w, &h) == -1) {
     return;
   }
   if ((int)strlen(text) < w) {
@@ -338,10 +338,10 @@ static int handle_stdin_buffer(struct strange_state_machine *machine,
 static int sync_resize_if_needed(struct strange_state_machine *machine,
                                  const struct timespec *now,
                                  struct strange_terminal_modes *modes) {
-  if (!strange_consume_resize_event()) {
+  if (!strange_pty_consume_resize_event()) {
     return 0;
   }
-  if (strange_sync_pty_window_size(drew_over_child_screen) == -1) {
+  if (strange_pty_sync_window_size(drew_over_child_screen) == -1) {
     perror("ioctl");
     return -1;
   }
@@ -357,22 +357,23 @@ int strange_preview(const struct strange_screensaver_descriptor *descriptor) {
   char keys[64];
   int failed = 0;
 
-  if (strange_set_screensaver_descriptor(descriptor) == -1 ||
-      strange_install_signal_handlers() == -1) {
+  if (strange_screensaver_set_descriptor(descriptor) == -1 ||
+      strange_pty_install_signal_handlers() == -1) {
     fprintf(stderr, "Failed to configure screensaver\n");
     return 1;
   }
 
-  strange_set_screensaver_preview(1);
-  enable_raw_mode();
-  failed = enter_screensaver(1) == -1;
+  strange_screensaver_set_preview(1);
+  strange_terminal_enable_raw_mode();
+  failed = strange_screensaver_enter(1) == -1;
 
-  while (!failed && !strange_shutdown_requested()) {
+  while (!failed && !strange_pty_shutdown_requested()) {
     fd_set read_fds;
     struct timeval timeout = {0, 0};
     int ready = 0;
 
-    if (monotonic_now(&now) == -1 || render_screensaver_frame(&now) == -1) {
+    if (monotonic_now(&now) == -1 ||
+        strange_screensaver_render_frame(&now) == -1) {
       failed = 1;
       break;
     }
@@ -390,9 +391,9 @@ int strange_preview(const struct strange_screensaver_descriptor *descriptor) {
     }
   }
 
-  leave_screensaver(1);
-  disable_raw_mode();
-  strange_set_screensaver_preview(0);
+  strange_screensaver_leave(1);
+  strange_terminal_disable_raw_mode();
+  strange_screensaver_set_preview(0);
 
   if (failed) {
     fprintf(stderr, "strange: %s\n", strange_screensaver_error());
@@ -413,21 +414,21 @@ int strange_run(const struct strange_options *options) {
   struct timespec now;
 
   if (options == NULL || options->screensaver_descriptor == NULL ||
-      strange_set_screensaver_descriptor(options->screensaver_descriptor) ==
+      strange_screensaver_set_descriptor(options->screensaver_descriptor) ==
           -1) {
     fprintf(stderr, "Failed to configure screensaver\n");
     return 1;
   }
 
   disable_key = options->disable_key;
-  strange_set_screensaver_disable_key(disable_key);
+  strange_screensaver_set_disable_key(disable_key);
   if (strange_session_export(options->screensaver_descriptor->name,
                              options->timeout_seconds,
                              options->cover_fullscreen, disable_key) == -1) {
     perror("setenv");
     return 1;
   }
-  if (setup_pty_and_shell() < 0) {
+  if (strange_pty_start_shell() < 0) {
     fprintf(stderr, "Failed to set up PTY and shell\n");
     return 1;
   }
@@ -435,7 +436,7 @@ int strange_run(const struct strange_options *options) {
   pending_input.length = 0;
   drew_over_child_screen = 0;
   memset(&held_output, 0, sizeof(held_output));
-  enable_raw_mode();
+  strange_terminal_enable_raw_mode();
 
   if (monotonic_now(&now) == -1) {
     goto cleanup;
@@ -456,7 +457,7 @@ int strange_run(const struct strange_options *options) {
       goto cleanup;
     }
 
-    if (strange_shutdown_requested()) {
+    if (strange_pty_shutdown_requested()) {
       handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_SHUTDOWN, &now,
                            &modes);
       break;
@@ -484,13 +485,13 @@ int strange_run(const struct strange_options *options) {
     if (input_capacity > 0) {
       FD_SET(STDIN_FILENO, &read_fds);
     }
-    if (master_fd >= 0) {
-      FD_SET(master_fd, &read_fds);
+    if (strange_pty_master_fd >= 0) {
+      FD_SET(strange_pty_master_fd, &read_fds);
       if (pending_input.length > 0) {
-        FD_SET(master_fd, &write_fds);
+        FD_SET(strange_pty_master_fd, &write_fds);
       }
-      if (master_fd > max_fd) {
-        max_fd = master_fd;
+      if (strange_pty_master_fd > max_fd) {
+        max_fd = strange_pty_master_fd;
       }
     }
 
@@ -510,7 +511,8 @@ int strange_run(const struct strange_options *options) {
       goto cleanup;
     }
 
-    if (ready > 0 && master_fd >= 0 && FD_ISSET(master_fd, &write_fds) &&
+    if (ready > 0 && strange_pty_master_fd >= 0 &&
+        FD_ISSET(strange_pty_master_fd, &write_fds) &&
         flush_pending_input() == -1) {
       perror("write");
       goto cleanup;
@@ -535,8 +537,9 @@ int strange_run(const struct strange_options *options) {
       }
     }
 
-    if (ready > 0 && master_fd >= 0 && FD_ISSET(master_fd, &read_fds)) {
-      ssize_t bytes = read(master_fd, buffer, sizeof(buffer));
+    if (ready > 0 && strange_pty_master_fd >= 0 &&
+        FD_ISSET(strange_pty_master_fd, &read_fds)) {
+      ssize_t bytes = read(strange_pty_master_fd, buffer, sizeof(buffer));
       if (bytes > 0) {
         if (monotonic_now(&now) == -1) {
           goto cleanup;
@@ -564,7 +567,7 @@ int strange_run(const struct strange_options *options) {
     }
 
     int shell_status = 0;
-    int shell_exited = poll_shell_exit(&shell_status);
+    int shell_exited = strange_pty_poll_shell_exit(&shell_status);
     if (shell_exited == -1) {
       perror("waitpid");
       goto cleanup;
@@ -583,15 +586,15 @@ cleanup:
   if (machine.state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
     exit_screensaver(&modes);
   }
-  disable_raw_mode();
-  cleanup_pty();
+  strange_terminal_disable_raw_mode();
+  strange_pty_cleanup();
 
   if (status != 0) {
     return 1;
   }
 
   int shell_status = 0;
-  int shell_exited = poll_shell_exit(&shell_status);
+  int shell_exited = strange_pty_poll_shell_exit(&shell_status);
   if (shell_exited == -1) {
     perror("waitpid");
     return 1;

@@ -64,7 +64,7 @@ static int ensure_render_context(void) {
   return 0;
 }
 
-int strange_set_screensaver_descriptor(
+int strange_screensaver_set_descriptor(
     const struct strange_screensaver_descriptor *descriptor) {
   if (screensaver_visible || screensaver_instance_ready) {
     errno = EBUSY;
@@ -78,11 +78,11 @@ int strange_set_screensaver_descriptor(
   return 0;
 }
 
-void strange_set_screensaver_preview(int preview) { preview_mode = preview; }
+void strange_screensaver_set_preview(int preview) { preview_mode = preview; }
 
-void strange_set_screensaver_disable_key(int key) { disable_key = key; }
+void strange_screensaver_set_disable_key(int key) { disable_key = key; }
 
-void disable_raw_mode(void) {
+void strange_terminal_disable_raw_mode(void) {
   if (!raw_mode_enabled) {
     return;
   }
@@ -91,13 +91,13 @@ void disable_raw_mode(void) {
   raw_mode_enabled = 0;
 }
 
-void enable_raw_mode(void) {
+void strange_terminal_enable_raw_mode(void) {
   if (raw_mode_enabled) {
     return;
   }
 
   tcgetattr(STDIN_FILENO, &orig_termios);
-  atexit(disable_raw_mode);
+  atexit(strange_terminal_disable_raw_mode);
 
   struct termios raw = orig_termios;
   raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL |
@@ -112,7 +112,7 @@ void enable_raw_mode(void) {
   raw_mode_enabled = 1;
 }
 
-int enter_screensaver(int use_alternate_screen) {
+int strange_screensaver_enter(int use_alternate_screen) {
   if (screensaver_visible) {
     return 0;
   }
@@ -142,7 +142,7 @@ int enter_screensaver(int use_alternate_screen) {
   return 0;
 }
 
-void leave_screensaver(int show_cursor) {
+void strange_screensaver_leave(int show_cursor) {
   if (!screensaver_visible) {
     return;
   }
@@ -160,7 +160,7 @@ void leave_screensaver(int show_cursor) {
   destroy_render_context();
 }
 
-int render_screensaver_frame(const struct timespec *now) {
+int strange_screensaver_render_frame(const struct timespec *now) {
   struct strange_screensaver_frame frame = {
       .now = now,
       .frame_count = 0,
@@ -184,7 +184,7 @@ int render_screensaver_frame(const struct timespec *now) {
                                           &frame) == -1) {
     return -1;
   }
-  render_screensaver_watermark(&screensaver_context.buffer, preview_mode,
-                               disable_key);
+  strange_watermark_render(&screensaver_context.buffer, preview_mode,
+                           disable_key);
   return strange_render_context_present(&screensaver_context);
 }

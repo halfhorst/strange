@@ -9,7 +9,7 @@
 
 namespace {
 
-std::string Row(const ScreenBuffer &buffer, int row) {
+std::string Row(const strange_screen_buffer &buffer, int row) {
   return std::string(buffer.buffer + (row * buffer.w * buffer.character_width),
                      buffer.w * buffer.character_width);
 }
@@ -66,7 +66,7 @@ TEST_F(ScreensaverLoaderTest, LuaScriptDrawsThroughTheBufferApi) {
   EXPECT_STREQ(saver.descriptor->name, "drawn");
   EXPECT_EQ(saver.descriptor->character_width, 3);
 
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   strange_screensaver_instance instance = {};
   timespec now = {5, 0};
   strange_screensaver_frame frame = {&now, 7};
@@ -92,7 +92,7 @@ TEST_F(ScreensaverLoaderTest, LuaScriptDefaultsItsNameAndCallbacks) {
   EXPECT_STREQ(saver.descriptor->name, "fixture");
   EXPECT_EQ(saver.descriptor->character_width, 1);
 
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   strange_screensaver_instance instance = {};
 
   ASSERT_EQ(strange_screen_buffer_init(&buffer, 2, 1, 1), 0);
@@ -115,7 +115,7 @@ TEST_F(ScreensaverLoaderTest, LuaRuntimeErrorFailsTheUpdateWithItsMessage) {
                   "}\n"));
   ASSERT_TRUE(saver.loaded()) << saver.error;
 
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   strange_screensaver_instance instance = {};
 
   ASSERT_EQ(strange_screen_buffer_init(&buffer, 2, 1, 1), 0);
@@ -151,7 +151,7 @@ TEST_F(ScreensaverLoaderTest, SharedLibraryExportsARunnableDescriptor) {
   ASSERT_TRUE(saver.loaded()) << saver.error;
   EXPECT_STREQ(saver.descriptor->name, "bounce");
 
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   strange_screensaver_instance instance = {};
   timespec now = {0, 0};
   strange_screensaver_frame frame = {&now, 1};

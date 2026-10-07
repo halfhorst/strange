@@ -19,8 +19,8 @@ extern "C" {
     update           function(state, buffer, frame)
     cleanup          function(state)
 
-  `buffer` mirrors struct ScreenBuffer and the C drawing calls, with the same
-  zero-based coordinates:
+  `buffer` mirrors struct strange_screen_buffer and the C drawing calls, with
+  the same zero-based coordinates:
 
     buffer.w, buffer.h, buffer.character_width
     buffer:write(chars, x, y)

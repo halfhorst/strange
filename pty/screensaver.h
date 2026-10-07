@@ -5,14 +5,14 @@
 
 #include "src/screensaver_registry.h"
 
-void enable_raw_mode(void);
-void disable_raw_mode(void);
-int strange_set_screensaver_descriptor(
+void strange_terminal_enable_raw_mode(void);
+void strange_terminal_disable_raw_mode(void);
+int strange_screensaver_set_descriptor(
     const struct strange_screensaver_descriptor *descriptor);
-void strange_set_screensaver_preview(int preview);
-void strange_set_screensaver_disable_key(int key);
-int enter_screensaver(int use_alternate_screen);
-void leave_screensaver(int show_cursor);
-int render_screensaver_frame(const struct timespec *now);
+void strange_screensaver_set_preview(int preview);
+void strange_screensaver_set_disable_key(int key);
+int strange_screensaver_enter(int use_alternate_screen);
+void strange_screensaver_leave(int show_cursor);
+int strange_screensaver_render_frame(const struct timespec *now);
 
 #endif

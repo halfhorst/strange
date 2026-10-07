@@ -373,7 +373,7 @@ int strange_screensaver_character_width(
 int strange_screensaver_instance_init(
     struct strange_screensaver_instance *instance,
     const struct strange_screensaver_descriptor *descriptor,
-    struct ScreenBuffer *buffer) {
+    struct strange_screen_buffer *buffer) {
   void *state = NULL;
 
   if (instance == NULL ||
@@ -395,7 +395,8 @@ int strange_screensaver_instance_init(
 }
 
 int strange_screensaver_instance_update(
-    struct strange_screensaver_instance *instance, struct ScreenBuffer *buffer,
+    struct strange_screensaver_instance *instance,
+    struct strange_screen_buffer *buffer,
     const struct strange_screensaver_frame *frame) {
   if (instance == NULL || instance->descriptor == NULL || buffer == NULL) {
     errno = EINVAL;

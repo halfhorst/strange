@@ -28,7 +28,7 @@
 
 #include "../screensaver_registry.h"
 
-#define DENABASE_CHAR_WIDTH 1
+#define STRANGE_DENABASE_CHARACTER_WIDTH 1
 
 extern const struct strange_screensaver_descriptor strange_denabase_descriptor;
 

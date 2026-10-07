@@ -33,7 +33,7 @@
 
 #include "../screensaver_registry.h"
 
-#define DIGITAL_RAIN_CHAR_WIDTH 3
+#define STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH 3
 
 extern const struct strange_screensaver_descriptor strange_digital_rain_descriptor;
 

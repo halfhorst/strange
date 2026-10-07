@@ -99,7 +99,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         return -1;
       }
       if (index + 1 >= argc ||
-          strange_parse_control_key(argv[index + 1], &options->disable_key) !=
+          strange_control_key_parse(argv[index + 1], &options->disable_key) !=
               0) {
         set_error(error_buffer, error_buffer_size,
                   "`--disable-key` takes a key such as `ctrl-q`, or `none`; "

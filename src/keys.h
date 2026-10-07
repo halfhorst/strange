@@ -15,7 +15,7 @@ extern "C" {
   into the byte a terminal sends for it. `none` gives STRANGE_NO_KEY. Tab,
   Enter and newline are refused since a shell cannot do without them.
 */
-int strange_parse_control_key(const char *text, int *key);
+int strange_control_key_parse(const char *text, int *key);
 
 // Writes `Ctrl-Q` for a key, or `none`.
 void strange_control_key_label(int key, char *label, size_t label_size);

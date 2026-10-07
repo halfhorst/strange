@@ -14,7 +14,7 @@ static int has_prefix_ignoring_case(const char *text, const char *prefix) {
   return 1;
 }
 
-int strange_parse_control_key(const char *text, int *key) {
+int strange_control_key_parse(const char *text, int *key) {
   int letter = 0;
 
   if (text == NULL || key == NULL) {

@@ -3,15 +3,15 @@
 
 #include <sys/types.h>
 
-extern int master_fd;
-extern pid_t shell_pid;
+extern int strange_pty_master_fd;
+extern pid_t strange_pty_shell_pid;
 
-int strange_install_signal_handlers(void);
-int setup_pty_and_shell(void);
-void cleanup_pty(void);
-int poll_shell_exit(int *status);
-int strange_shutdown_requested(void);
-int strange_consume_resize_event(void);
-int strange_sync_pty_window_size(int misreport_height);
+int strange_pty_install_signal_handlers(void);
+int strange_pty_start_shell(void);
+void strange_pty_cleanup(void);
+int strange_pty_poll_shell_exit(int *status);
+int strange_pty_shutdown_requested(void);
+int strange_pty_consume_resize_event(void);
+int strange_pty_sync_window_size(int misreport_height);
 
 #endif

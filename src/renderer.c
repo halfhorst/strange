@@ -10,13 +10,13 @@
 // shorter than this, which costs less than another cursor move.
 #define STRANGE_RENDER_RUN_MAX_GAP 4
 
-static size_t screen_buffer_bytes(const struct ScreenBuffer *buffer) {
+static size_t screen_buffer_bytes(const struct strange_screen_buffer *buffer) {
   return (size_t)buffer->w * (size_t)buffer->h *
          (size_t)buffer->character_width;
 }
 
-static int initialize_screen_buffer(struct ScreenBuffer *buffer, int w, int h,
-                                    int character_width) {
+static int initialize_screen_buffer(struct strange_screen_buffer *buffer, int w,
+                                    int h, int character_width) {
   if (buffer == NULL || character_width < 1 || w < 1 || h < 1) {
     errno = EINVAL;
     return -1;
@@ -34,7 +34,7 @@ static int initialize_screen_buffer(struct ScreenBuffer *buffer, int w, int h,
   return 0;
 }
 
-int strange_get_terminal_size(int fd, int *w, int *h) {
+int strange_terminal_size(int fd, int *w, int *h) {
   struct winsize ws;
 
   if (ioctl(fd, TIOCGWINSZ, &ws) == -1) {
@@ -50,8 +50,8 @@ int strange_get_terminal_size(int fd, int *w, int *h) {
   return 0;
 }
 
-int strange_screen_buffer_init(struct ScreenBuffer *buffer, int w, int h,
-                               int character_width) {
+int strange_screen_buffer_init(struct strange_screen_buffer *buffer, int w,
+                               int h, int character_width) {
   if (buffer == NULL) {
     errno = EINVAL;
     return -1;
@@ -64,8 +64,9 @@ int strange_screen_buffer_init(struct ScreenBuffer *buffer, int w, int h,
   return initialize_screen_buffer(buffer, w, h, character_width);
 }
 
-int strange_screen_buffer_resize(struct ScreenBuffer *buffer, int w, int h) {
-  struct ScreenBuffer resized = {0};
+int strange_screen_buffer_resize(struct strange_screen_buffer *buffer, int w,
+                                 int h) {
+  struct strange_screen_buffer resized = {0};
 
   if (buffer == NULL || buffer->character_width < 1) {
     errno = EINVAL;
@@ -86,7 +87,7 @@ int strange_screen_buffer_resize(struct ScreenBuffer *buffer, int w, int h) {
   return 0;
 }
 
-void strange_screen_buffer_free(struct ScreenBuffer *buffer) {
+void strange_screen_buffer_free(struct strange_screen_buffer *buffer) {
   if (buffer == NULL) {
     return;
   }
@@ -98,16 +99,16 @@ void strange_screen_buffer_free(struct ScreenBuffer *buffer) {
   buffer->character_width = 0;
 }
 
-void strange_screen_buffer_clear(struct ScreenBuffer *buffer) {
+void strange_screen_buffer_clear(struct strange_screen_buffer *buffer) {
   if (buffer == NULL || buffer->buffer == NULL || buffer->character_width < 1) {
     return;
   }
 
-  memset(buffer->buffer, SL_PAD_CHAR, screen_buffer_bytes(buffer));
+  memset(buffer->buffer, STRANGE_PAD_CHAR, screen_buffer_bytes(buffer));
 
   for (size_t index = 0; index < screen_buffer_bytes(buffer);
        index += (size_t)buffer->character_width) {
-    buffer->buffer[index] = SL_SPACE_CHAR;
+    buffer->buffer[index] = STRANGE_SPACE_CHAR;
   }
 }
 
@@ -123,7 +124,7 @@ int strange_render_context_init(struct strange_render_context *context,
   }
 
   memset(context, 0, sizeof(*context));
-  if (strange_get_terminal_size(terminal_fd, &w, &h) == -1) {
+  if (strange_terminal_size(terminal_fd, &w, &h) == -1) {
     return -1;
   }
   if (strange_screen_buffer_init(&context->buffer, w, h, character_width) ==
@@ -145,7 +146,7 @@ int strange_render_context_refresh_size(struct strange_render_context *context) 
     errno = EINVAL;
     return -1;
   }
-  if (strange_get_terminal_size(context->terminal_fd, &w, &h) == -1) {
+  if (strange_terminal_size(context->terminal_fd, &w, &h) == -1) {
     return -1;
   }
 
@@ -160,8 +161,8 @@ void strange_render_context_begin_frame(struct strange_render_context *context) 
   strange_screen_buffer_clear(&context->buffer);
 }
 
-static int write_cells(FILE *stream, const struct ScreenBuffer *buffer, int row,
-                       int start, int end) {
+static int write_cells(FILE *stream, const struct strange_screen_buffer *buffer,
+                       int row, int start, int end) {
   size_t cell_bytes = (size_t)buffer->character_width;
   size_t offset = ((size_t)row * (size_t)buffer->w + (size_t)start) * cell_bytes;
   size_t length = (size_t)(end - start) * cell_bytes;
@@ -174,8 +175,9 @@ static int write_cells(FILE *stream, const struct ScreenBuffer *buffer, int row,
   return 0;
 }
 
-static int cell_changed(const struct ScreenBuffer *buffer,
-                        const struct ScreenBuffer *presented, int row, int x) {
+static int cell_changed(const struct strange_screen_buffer *buffer,
+                        const struct strange_screen_buffer *presented, int row,
+                        int x) {
   size_t cell_bytes = (size_t)buffer->character_width;
   size_t offset = ((size_t)row * (size_t)buffer->w + (size_t)x) * cell_bytes;
 
@@ -183,8 +185,10 @@ static int cell_changed(const struct ScreenBuffer *buffer,
                 cell_bytes) != 0;
 }
 
-static int write_changed_cells(FILE *stream, const struct ScreenBuffer *buffer,
-                               const struct ScreenBuffer *presented, int row) {
+static int write_changed_cells(FILE *stream,
+                               const struct strange_screen_buffer *buffer,
+                               const struct strange_screen_buffer *presented,
+                               int row) {
   int x = 0;
 
   while (x < buffer->w) {
@@ -213,8 +217,8 @@ static int write_changed_cells(FILE *stream, const struct ScreenBuffer *buffer,
 }
 
 int strange_render_context_present(struct strange_render_context *context) {
-  const struct ScreenBuffer *buffer = NULL;
-  struct ScreenBuffer *presented = NULL;
+  const struct strange_screen_buffer *buffer = NULL;
+  struct strange_screen_buffer *presented = NULL;
   int redraw_everything = 0;
 
   if (context == NULL || context->stream == NULL || context->buffer.buffer == NULL) {
@@ -267,31 +271,32 @@ void strange_render_context_destroy(struct strange_render_context *context) {
   context->frame_count = 0;
 }
 
-void write_to_buffer(struct ScreenBuffer *sbuffer, const char *chars,
-                     int num_chars, int x, int y) {
-  if (sbuffer == NULL || sbuffer->buffer == NULL || chars == NULL ||
-      num_chars < 0 || num_chars > sbuffer->character_width || x < 0 || y < 0 ||
-      x >= sbuffer->w || y >= sbuffer->h) {
+void strange_screen_buffer_write(struct strange_screen_buffer *buffer,
+                                 const char *chars, int num_chars, int x,
+                                 int y) {
+  if (buffer == NULL || buffer->buffer == NULL || chars == NULL ||
+      num_chars < 0 || num_chars > buffer->character_width || x < 0 || y < 0 ||
+      x >= buffer->w || y >= buffer->h) {
     return;
   }
 
-  int index = sbuffer->character_width * ((sbuffer->w * y) + x);
-  memset(sbuffer->buffer + index, SL_PAD_CHAR, sbuffer->character_width);
-  memcpy(sbuffer->buffer + index, chars, (size_t)num_chars);
+  int index = buffer->character_width * ((buffer->w * y) + x);
+  memset(buffer->buffer + index, STRANGE_PAD_CHAR, buffer->character_width);
+  memcpy(buffer->buffer + index, chars, (size_t)num_chars);
 }
 
-void write_string_to_buffer(struct ScreenBuffer *sbuffer, const char *text,
-                            int x, int y) {
+void strange_screen_buffer_write_string(struct strange_screen_buffer *buffer,
+                                        const char *text, int x, int y) {
   size_t remaining_width = 0;
 
-  if (sbuffer == NULL || text == NULL || x < 0 || y < 0 || x >= sbuffer->w ||
-      y >= sbuffer->h) {
+  if (buffer == NULL || text == NULL || x < 0 || y < 0 || x >= buffer->w ||
+      y >= buffer->h) {
     return;
   }
 
-  remaining_width = (size_t)(sbuffer->w - x);
+  remaining_width = (size_t)(buffer->w - x);
   for (size_t index = 0; text[index] != '\0' && index < remaining_width;
        ++index) {
-    write_to_buffer(sbuffer, text + index, 1, x + (int)index, y);
+    strange_screen_buffer_write(buffer, text + index, 1, x + (int)index, y);
   }
 }

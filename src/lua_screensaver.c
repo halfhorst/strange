@@ -31,8 +31,9 @@ static void set_error(char *buffer, size_t buffer_size, const char *format, ...)
   va_end(args);
 }
 
-static struct ScreenBuffer *check_buffer(lua_State *lua) {
-  struct ScreenBuffer **handle = luaL_checkudata(lua, 1, BUFFER_METATABLE);
+static struct strange_screen_buffer *check_buffer(lua_State *lua) {
+  struct strange_screen_buffer **handle =
+      luaL_checkudata(lua, 1, BUFFER_METATABLE);
 
   if (*handle == NULL) {
     luaL_error(lua, "buffer used outside the call it was passed to");
@@ -42,7 +43,7 @@ static struct ScreenBuffer *check_buffer(lua_State *lua) {
 }
 
 static int buffer_write(lua_State *lua) {
-  struct ScreenBuffer *buffer = check_buffer(lua);
+  struct strange_screen_buffer *buffer = check_buffer(lua);
   size_t length = 0;
   const char *chars = luaL_checklstring(lua, 2, &length);
   int x = (int)luaL_checkinteger(lua, 3);
@@ -50,17 +51,17 @@ static int buffer_write(lua_State *lua) {
 
   luaL_argcheck(lua, length <= (size_t)buffer->character_width, 2,
                 "longer than character_width bytes");
-  write_to_buffer(buffer, chars, (int)length, x, y);
+  strange_screen_buffer_write(buffer, chars, (int)length, x, y);
   return 0;
 }
 
 static int buffer_write_string(lua_State *lua) {
-  struct ScreenBuffer *buffer = check_buffer(lua);
+  struct strange_screen_buffer *buffer = check_buffer(lua);
   const char *text = luaL_checkstring(lua, 2);
   int x = (int)luaL_checkinteger(lua, 3);
   int y = (int)luaL_checkinteger(lua, 4);
 
-  write_string_to_buffer(buffer, text, x, y);
+  strange_screen_buffer_write_string(buffer, text, x, y);
   return 0;
 }
 
@@ -70,7 +71,7 @@ static int buffer_clear(lua_State *lua) {
 }
 
 static int buffer_index(lua_State *lua) {
-  struct ScreenBuffer *buffer = check_buffer(lua);
+  struct strange_screen_buffer *buffer = check_buffer(lua);
   const char *key = luaL_checkstring(lua, 2);
 
   if (strcmp(key, "w") == 0) {
@@ -101,9 +102,9 @@ static void register_buffer_type(lua_State *lua) {
   lua_pop(lua, 1);
 }
 
-static struct ScreenBuffer **push_buffer(lua_State *lua,
-                                         struct ScreenBuffer *buffer) {
-  struct ScreenBuffer **handle = lua_newuserdata(lua, sizeof(*handle));
+static struct strange_screen_buffer **push_buffer(
+    lua_State *lua, struct strange_screen_buffer *buffer) {
+  struct strange_screen_buffer **handle = lua_newuserdata(lua, sizeof(*handle));
 
   *handle = buffer;
   luaL_setmetatable(lua, BUFFER_METATABLE);
@@ -136,9 +137,10 @@ static int call_callback(lua_State *lua, const char *field, int argument_count,
   return -1;
 }
 
-static int lua_screensaver_init(void **state, struct ScreenBuffer *buffer) {
+static int lua_screensaver_init(void **state,
+                                struct strange_screen_buffer *buffer) {
   lua_State *lua = loaded.lua;
-  struct ScreenBuffer **handle = NULL;
+  struct strange_screen_buffer **handle = NULL;
   int result = 0;
 
   if (lua == NULL || state == NULL) {
@@ -161,10 +163,10 @@ static int lua_screensaver_init(void **state, struct ScreenBuffer *buffer) {
 }
 
 static int lua_screensaver_update(
-    void *state, struct ScreenBuffer *buffer,
+    void *state, struct strange_screen_buffer *buffer,
     const struct strange_screensaver_frame *frame) {
   lua_State *lua = loaded.lua;
-  struct ScreenBuffer **handle = NULL;
+  struct strange_screen_buffer **handle = NULL;
   int result = 0;
 
   (void)state;

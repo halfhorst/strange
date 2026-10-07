@@ -38,14 +38,16 @@ struct layout {
 
 static void generate_random_sequence(char *sequence, size_t length);
 static char complement(char base);
-static int compute_layout(const struct ScreenBuffer *buffer,
+static int compute_layout(const struct strange_screen_buffer *buffer,
                           struct layout *layout);
 static void draw_table(const struct denabase_state *state,
-                       struct ScreenBuffer *buffer, const struct layout *layout);
+                       struct strange_screen_buffer *buffer,
+                       const struct layout *layout);
 static void draw_helix(const struct denabase_state *state,
-                       struct ScreenBuffer *buffer, const struct layout *layout);
+                       struct strange_screen_buffer *buffer,
+                       const struct layout *layout);
 
-static int denabase_init(void **state, struct ScreenBuffer *buffer) {
+static int denabase_init(void **state, struct strange_screen_buffer *buffer) {
   struct denabase_state *denabase = NULL;
 
   (void)buffer;
@@ -69,28 +71,27 @@ static int denabase_init(void **state, struct ScreenBuffer *buffer) {
   return 0;
 }
 
-static int denabase_update(
-    void *state, struct ScreenBuffer *sbuffer,
-    const struct strange_screensaver_frame *frame) {
+static int denabase_update(void *state, struct strange_screen_buffer *buffer,
+                           const struct strange_screensaver_frame *frame) {
   struct denabase_state *denabase = state;
   struct layout layout;
 
-  if (denabase == NULL || sbuffer == NULL) {
+  if (denabase == NULL || buffer == NULL) {
     errno = EINVAL;
     return -1;
   }
   if (frame != NULL && (frame->frame_count % FRAMES_PER_ROW) == 0) {
     denabase->scroll++;
   }
-  if (compute_layout(sbuffer, &layout) == -1) {
+  if (compute_layout(buffer, &layout) == -1) {
     return 0;
   }
 
   // The sequence is treated as a loop of whole table rows.
   denabase->scroll %= layout.sequence_rows * layout.bases_per_row * ROWS_PER_BASE;
 
-  draw_helix(denabase, sbuffer, &layout);
-  draw_table(denabase, sbuffer, &layout);
+  draw_helix(denabase, buffer, &layout);
+  draw_table(denabase, buffer, &layout);
   return 0;
 }
 
@@ -108,14 +109,15 @@ static void denabase_cleanup(void *state) {
 const struct strange_screensaver_descriptor strange_denabase_descriptor = {
     .api_version = STRANGE_SCREENSAVER_API_VERSION,
     .name = "denabase",
-    .character_width = DENABASE_CHAR_WIDTH,
+    .character_width = STRANGE_DENABASE_CHARACTER_WIDTH,
     .init = denabase_init,
     .update = denabase_update,
     .cleanup = denabase_cleanup,
 };
 
-static void put(struct ScreenBuffer *buffer, char character, int x, int y) {
-  write_to_buffer(buffer, &character, 1, x, y);
+static void put(struct strange_screen_buffer *buffer, char character, int x,
+                int y) {
+  strange_screen_buffer_write(buffer, &character, 1, x, y);
 }
 
 static long floor_divide(long value, long divisor) {
@@ -144,7 +146,7 @@ static long base_at_row(const struct denabase_state *state,
   the focus row set apart in the middle. Returns -1 if the buffer is too small
   to draw anything sensible.
 */
-static int compute_layout(const struct ScreenBuffer *buffer,
+static int compute_layout(const struct strange_screen_buffer *buffer,
                           struct layout *layout) {
   int right_half = 0;
 
@@ -167,7 +169,8 @@ static int compute_layout(const struct ScreenBuffer *buffer,
 }
 
 static void draw_table(const struct denabase_state *state,
-                       struct ScreenBuffer *buffer, const struct layout *layout) {
+                       struct strange_screen_buffer *buffer,
+                       const struct layout *layout) {
   long current_base = base_at_row(state, layout, layout->focus_row);
   long focus_sequence_row = current_base / layout->bases_per_row;
   int current_column = 2 + (int)(current_base % layout->bases_per_row);
@@ -219,8 +222,8 @@ static int strand_column(const struct layout *layout, double angle) {
   base hangs off the strand it belongs to and the two are linked. The pair is
   left out where the strands are too close on this row to fit it.
 */
-static void draw_base_pair(struct ScreenBuffer *buffer, int y, char base,
-                           int base_strand_min, int base_strand_max,
+static void draw_base_pair(struct strange_screen_buffer *buffer, int y,
+                           char base, int base_strand_min, int base_strand_max,
                            int other_strand_min, int other_strand_max) {
   int base_is_left = base_strand_min < other_strand_min;
   int left = (base_is_left ? base_strand_max : other_strand_max) + 1;
@@ -242,7 +245,8 @@ static void draw_base_pair(struct ScreenBuffer *buffer, int y, char base,
 }
 
 static void draw_helix(const struct denabase_state *state,
-                       struct ScreenBuffer *buffer, const struct layout *layout) {
+                       struct strange_screen_buffer *buffer,
+                       const struct layout *layout) {
   int current_row =
       layout->focus_row - (int)wrap(state->scroll, ROWS_PER_BASE);
 

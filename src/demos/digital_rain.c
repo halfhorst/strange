@@ -13,7 +13,7 @@
 #define STREAM_BUFFER_SIZE 250
 #define STREAM_BUFFER_NUM 750
 
-struct Stream {
+struct stream {
   int x;
   int start_visible;
   int end_visible;
@@ -23,7 +23,7 @@ struct Stream {
 };
 
 struct digital_rain_state {
-  struct Stream *streams;
+  struct stream *streams;
 };
 
 static int allocate_streams(struct digital_rain_state *state);
@@ -35,7 +35,8 @@ static void toggle_streams(struct digital_rain_state *state, int w,
 static void shift_visible_window(struct digital_rain_state *state, int w, int h,
                                  unsigned long frame_count);
 
-static int digital_rain_init(void **state, struct ScreenBuffer *buffer) {
+static int digital_rain_init(void **state,
+                             struct strange_screen_buffer *buffer) {
   struct digital_rain_state *rain = NULL;
 
   (void)buffer;
@@ -56,17 +57,17 @@ static int digital_rain_init(void **state, struct ScreenBuffer *buffer) {
   return 0;
 }
 
-static int digital_rain_update(
-    void *state, struct ScreenBuffer *sbuffer,
-    const struct strange_screensaver_frame *frame) {
+static int digital_rain_update(void *state,
+                               struct strange_screen_buffer *buffer,
+                               const struct strange_screensaver_frame *frame) {
   struct digital_rain_state *rain = state;
   unsigned long frame_count = 0;
   int minimum_stream_length = 0;
 
-  if (rain == NULL || sbuffer == NULL) {
+  if (rain == NULL || buffer == NULL) {
     return -1;
   }
-  if ((sbuffer->h > STREAM_BUFFER_SIZE) || (sbuffer->w > STREAM_BUFFER_NUM)) {
+  if ((buffer->h > STREAM_BUFFER_SIZE) || (buffer->w > STREAM_BUFFER_NUM)) {
     return -1;
   }
 
@@ -74,36 +75,38 @@ static int digital_rain_update(
     frame_count = frame->frame_count;
   }
 
-  minimum_stream_length = sbuffer->h / 3;
+  minimum_stream_length = buffer->h / 3;
   if (minimum_stream_length < MIN_STREAM_LENGTH) {
     minimum_stream_length = MIN_STREAM_LENGTH;
   }
 
-  toggle_streams(rain, sbuffer->w, minimum_stream_length);
+  toggle_streams(rain, buffer->w, minimum_stream_length);
 
-  shift_visible_window(rain, sbuffer->w, sbuffer->h, frame_count);
+  shift_visible_window(rain, buffer->w, buffer->h, frame_count);
 
-  for (int i = 0; i < sbuffer->w; i++) {
+  for (int i = 0; i < buffer->w; i++) {
     int visible_end = rain->streams[i].end_visible;
 
-    if (visible_end > sbuffer->h) {
-      visible_end = sbuffer->h;
+    if (visible_end > buffer->h) {
+      visible_end = buffer->h;
     }
 
     for (int j = rain->streams[i].start_visible; j < visible_end; j++) {
       if (j >= 0) {
         if ((rand() / (double)RAND_MAX) < CHAR_SHUFFLE_RATE) {
-          char character[DIGITAL_RAIN_CHAR_WIDTH];
+          char character[STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH];
 
           random_character(character);
-          memcpy(rain->streams[i].characters + (j * DIGITAL_RAIN_CHAR_WIDTH),
-                 character, DIGITAL_RAIN_CHAR_WIDTH);
+          memcpy(rain->streams[i].characters +
+                     (j * STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH),
+                 character, STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH);
         }
 
-        write_to_buffer(sbuffer,
-                        rain->streams[i].characters +
-                            (j * DIGITAL_RAIN_CHAR_WIDTH),
-                        DIGITAL_RAIN_CHAR_WIDTH, i, j);
+        strange_screen_buffer_write(
+            buffer,
+            rain->streams[i].characters +
+                (j * STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH),
+            STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH, i, j);
       }
     }
   }
@@ -124,7 +127,7 @@ static void digital_rain_cleanup(void *state) {
 const struct strange_screensaver_descriptor strange_digital_rain_descriptor = {
     .api_version = STRANGE_SCREENSAVER_API_VERSION,
     .name = "digital-rain",
-    .character_width = DIGITAL_RAIN_CHAR_WIDTH,
+    .character_width = STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH,
     .init = digital_rain_init,
     .update = digital_rain_update,
     .cleanup = digital_rain_cleanup,
@@ -183,23 +186,24 @@ static void random_character(char *buffer) {
     buffer[2] = (char)0x80 + (rand() % 30);
   } else {
     buffer[0] = (char)0x30 + (rand() % 10);
-    buffer[1] = (char)SL_PAD_CHAR;
-    buffer[2] = (char)SL_PAD_CHAR;
+    buffer[1] = (char)STRANGE_PAD_CHAR;
+    buffer[2] = (char)STRANGE_PAD_CHAR;
   }
 }
 
 static char *get_character_stream(int n) {
-  char *char_stream = malloc(sizeof(char) * n * DIGITAL_RAIN_CHAR_WIDTH);
-  char kana[DIGITAL_RAIN_CHAR_WIDTH];
+  char *char_stream =
+      malloc(sizeof(char) * n * STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH);
+  char kana[STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH];
 
   if (char_stream == NULL) {
     return NULL;
   }
 
-  for (int i = 0; i < (n * DIGITAL_RAIN_CHAR_WIDTH);
-       i += DIGITAL_RAIN_CHAR_WIDTH) {
+  for (int i = 0; i < (n * STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH);
+       i += STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH) {
     random_character(kana);
-    memcpy(char_stream + i, kana, DIGITAL_RAIN_CHAR_WIDTH);
+    memcpy(char_stream + i, kana, STRANGE_DIGITAL_RAIN_CHARACTER_WIDTH);
   }
 
   return char_stream;

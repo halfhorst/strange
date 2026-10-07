@@ -85,14 +85,14 @@ void ResetLifecycleCounters() {
   g_last_frame_count = 0;
 }
 
-int TestInit(void **state, ScreenBuffer *buffer) {
+int TestInit(void **state, strange_screen_buffer *buffer) {
   ++g_init_calls;
   g_init_width = buffer != nullptr ? buffer->w : 0;
   *state = std::malloc(1);
   return *state == nullptr ? -1 : 0;
 }
 
-int TestUpdate(void *state, ScreenBuffer *buffer,
+int TestUpdate(void *state, strange_screen_buffer *buffer,
                const strange_screensaver_frame *frame) {
   if (state == nullptr || buffer == nullptr) {
     return -1;
@@ -100,7 +100,7 @@ int TestUpdate(void *state, ScreenBuffer *buffer,
 
   ++g_update_calls;
   g_last_frame_count = frame != nullptr ? frame->frame_count : 0;
-  write_string_to_buffer(buffer, "X", 0, 0);
+  strange_screen_buffer_write_string(buffer, "X", 0, 0);
   return 0;
 }
 
@@ -141,7 +141,7 @@ TEST(ScreensaverRegistryTest, InstanceLifecycleUsesDescriptorCallbacks) {
   };
   strange_screensaver_instance instance = {};
   strange_screensaver_frame frame = {};
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
 
   ResetLifecycleCounters();
   ASSERT_EQ(strange_screen_buffer_init(&buffer, 8, 4, 1), 0);
@@ -265,7 +265,7 @@ TEST(ScreensaverRegistryTest, DenabaseBuiltinRendersThroughSharedContract) {
       strange_builtin_screensaver_find("denabase");
   strange_screensaver_instance instance = {};
   strange_screensaver_frame frame = {};
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   int helix_pixels = 0;
 
   std::srand(1);
@@ -301,7 +301,7 @@ TEST(ScreensaverRegistryTest, DenabaseHelixPairsTheBaseMarkedInTheTable) {
   const strange_screensaver_descriptor *descriptor =
       strange_builtin_screensaver_find("denabase");
   strange_screensaver_instance instance = {};
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   const int focus_row = 10;
   const int table_right = 30;
   int pairs_checked = 0;
@@ -365,7 +365,7 @@ TEST(ScreensaverRegistryTest, DigitalRainBuiltinRendersThroughSharedContract) {
       strange_builtin_screensaver_find("digital-rain");
   strange_screensaver_instance instance = {};
   strange_screensaver_frame frame = {};
-  ScreenBuffer buffer = {};
+  strange_screen_buffer buffer = {};
   bool rendered_anything = false;
 
   std::srand(1);

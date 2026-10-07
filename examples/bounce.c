@@ -15,7 +15,7 @@ struct bounce_state {
   int step_y;
 };
 
-static int bounce_init(void **state, struct ScreenBuffer *buffer) {
+static int bounce_init(void **state, struct strange_screen_buffer *buffer) {
   struct bounce_state *bounce = calloc(1, sizeof(*bounce));
 
   if (bounce == NULL) {
@@ -31,7 +31,7 @@ static int bounce_init(void **state, struct ScreenBuffer *buffer) {
   return 0;
 }
 
-static int bounce_update(void *state, struct ScreenBuffer *buffer,
+static int bounce_update(void *state, struct strange_screen_buffer *buffer,
                          const struct strange_screensaver_frame *frame) {
   struct bounce_state *bounce = state;
 
@@ -46,7 +46,7 @@ static int bounce_update(void *state, struct ScreenBuffer *buffer,
     bounce->y += bounce->step_y;
   }
 
-  write_to_buffer(buffer, "O", 1, bounce->x, bounce->y);
+  strange_screen_buffer_write(buffer, "O", 1, bounce->x, bounce->y);
   return 0;
 }
 

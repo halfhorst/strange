@@ -15,8 +15,8 @@
 
 #include "src/session.h"
 
-int master_fd = -1;
-pid_t shell_pid = -1;
+int strange_pty_master_fd = -1;
+pid_t strange_pty_shell_pid = -1;
 
 static volatile sig_atomic_t shutdown_requested = 0;
 static volatile sig_atomic_t resize_requested = 0;
@@ -45,7 +45,7 @@ static int install_signal_handler(int signo, void (*handler)(int)) {
   return sigaction(signo, &action, NULL);
 }
 
-int strange_install_signal_handlers(void) {
+int strange_pty_install_signal_handlers(void) {
   if (install_signal_handler(SIGINT, request_shutdown) == -1) {
     return -1;
   }
@@ -151,23 +151,21 @@ static int set_nonblocking(int fd) {
 }
 
 static void close_master_fd(void) {
-  if (master_fd >= 0) {
-    close(master_fd);
-    master_fd = -1;
+  if (strange_pty_master_fd >= 0) {
+    close(strange_pty_master_fd);
+    strange_pty_master_fd = -1;
   }
 }
 
 static void record_shell_exit_status(int status) {
   last_shell_status = status;
   shell_status_ready = 1;
-  shell_pid = -1;
+  strange_pty_shell_pid = -1;
 }
 
-int strange_shutdown_requested(void) {
-  return shutdown_requested != 0;
-}
+int strange_pty_shutdown_requested(void) { return shutdown_requested != 0; }
 
-int strange_consume_resize_event(void) {
+int strange_pty_consume_resize_event(void) {
   if (!resize_requested) {
     return 0;
   }
@@ -181,10 +179,10 @@ int strange_consume_resize_event(void) {
   a height one row off, so that reporting the true size later is a change and
   makes a full-screen program repaint.
 */
-int strange_sync_pty_window_size(int misreport_height) {
+int strange_pty_sync_window_size(int misreport_height) {
   struct winsize terminal_size;
 
-  if (master_fd < 0) {
+  if (strange_pty_master_fd < 0) {
     errno = EBADF;
     return -1;
   }
@@ -195,10 +193,10 @@ int strange_sync_pty_window_size(int misreport_height) {
     terminal_size.ws_row += terminal_size.ws_row > 1 ? -1 : 1;
   }
 
-  return ioctl(master_fd, TIOCSWINSZ, &terminal_size);
+  return ioctl(strange_pty_master_fd, TIOCSWINSZ, &terminal_size);
 }
 
-int poll_shell_exit(int *status) {
+int strange_pty_poll_shell_exit(int *status) {
   int wait_status = 0;
 
   if (shell_status_ready) {
@@ -208,18 +206,18 @@ int poll_shell_exit(int *status) {
     return 1;
   }
 
-  if (shell_pid <= 0) {
+  if (strange_pty_shell_pid <= 0) {
     return 0;
   }
 
-  pid_t result = waitpid(shell_pid, &wait_status, WNOHANG);
+  pid_t result = waitpid(strange_pty_shell_pid, &wait_status, WNOHANG);
 
   if (result == 0) {
     return 0;
   }
   if (result == -1) {
     if (errno == ECHILD) {
-      shell_pid = -1;
+      strange_pty_shell_pid = -1;
       return 0;
     }
     return -1;
@@ -273,7 +271,7 @@ static void exec_login_shell_or_die(const char *shell_path,
     _exit(EXIT_FAILURE);
   }
 
-  close(master_fd);
+  close(strange_pty_master_fd);
 
   char login_argv0[PATH_MAX];
   if (build_login_argv0(shell_path, login_argv0, sizeof(login_argv0)) == -1) {
@@ -288,7 +286,7 @@ static void exec_login_shell_or_die(const char *shell_path,
   _exit(EXIT_FAILURE);
 }
 
-int setup_pty_and_shell(void) {
+int strange_pty_start_shell(void) {
   const char *slave_name = NULL;
   const char *shell_path = resolve_shell_path();
   struct terminal_state state;
@@ -308,59 +306,60 @@ int setup_pty_and_shell(void) {
     return -1;
   }
 
-  master_fd = posix_openpt(O_RDWR | O_NOCTTY);
-  if (master_fd == -1) {
+  strange_pty_master_fd = posix_openpt(O_RDWR | O_NOCTTY);
+  if (strange_pty_master_fd == -1) {
     perror("posix_openpt");
     return -1;
   }
 
-  if (grantpt(master_fd) == -1 || unlockpt(master_fd) == -1) {
+  if (grantpt(strange_pty_master_fd) == -1 ||
+      unlockpt(strange_pty_master_fd) == -1) {
     perror("grantpt/unlockpt");
     close_master_fd();
     return -1;
   }
 
-  slave_name = ptsname(master_fd);
+  slave_name = ptsname(strange_pty_master_fd);
   if (slave_name == NULL) {
     perror("ptsname");
     close_master_fd();
     return -1;
   }
 
-  shell_pid = fork();
-  if (shell_pid == -1) {
+  strange_pty_shell_pid = fork();
+  if (strange_pty_shell_pid == -1) {
     perror("fork");
     close_master_fd();
     return -1;
   }
 
-  if (shell_pid == 0) {
+  if (strange_pty_shell_pid == 0) {
     exec_login_shell_or_die(shell_path, slave_name, &state);
   }
 
-  if (set_nonblocking(master_fd) == -1) {
+  if (set_nonblocking(strange_pty_master_fd) == -1) {
     perror("fcntl");
-    cleanup_pty();
+    strange_pty_cleanup();
     return -1;
   }
 
-  if (strange_install_signal_handlers() == -1) {
+  if (strange_pty_install_signal_handlers() == -1) {
     perror("sigaction");
-    cleanup_pty();
+    strange_pty_cleanup();
     return -1;
   }
 
   return 0;
 }
 
-void cleanup_pty(void) {
-  pid_t pid = shell_pid;
+void strange_pty_cleanup(void) {
+  pid_t pid = strange_pty_shell_pid;
   int wait_status = 0;
   int reaped = 0;
   pid_t wait_result = -1;
 
-  (void)poll_shell_exit(NULL);
-  pid = shell_pid;
+  (void)strange_pty_poll_shell_exit(NULL);
+  pid = strange_pty_shell_pid;
 
   close_master_fd();
 
@@ -392,5 +391,5 @@ void cleanup_pty(void) {
     shell_status_ready = 1;
   }
 
-  shell_pid = -1;
+  strange_pty_shell_pid = -1;
 }

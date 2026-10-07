@@ -15,7 +15,7 @@ extern "C" {
   the meaning of the callbacks. It changes whenever a library built against the
   old ones would no longer work.
 */
-#define STRANGE_SCREENSAVER_API_VERSION 1
+#define STRANGE_SCREENSAVER_API_VERSION 2
 
 #define STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL "strange_screensaver_descriptor"
 #define STRANGE_LUA_DESCRIPTOR_NAME_FIELD "name"
@@ -29,10 +29,10 @@ struct strange_screensaver_frame {
   unsigned long frame_count;
 };
 
-typedef int (*strange_screensaver_init_fn)(void **state,
-                                           struct ScreenBuffer *buffer);
+typedef int (*strange_screensaver_init_fn)(
+    void **state, struct strange_screen_buffer *buffer);
 typedef int (*strange_screensaver_update_fn)(
-    void *state, struct ScreenBuffer *buffer,
+    void *state, struct strange_screen_buffer *buffer,
     const struct strange_screensaver_frame *frame);
 typedef void (*strange_screensaver_cleanup_fn)(void *state);
 
@@ -89,9 +89,10 @@ int strange_screensaver_character_width(
 int strange_screensaver_instance_init(
     struct strange_screensaver_instance *instance,
     const struct strange_screensaver_descriptor *descriptor,
-    struct ScreenBuffer *buffer);
+    struct strange_screen_buffer *buffer);
 int strange_screensaver_instance_update(
-    struct strange_screensaver_instance *instance, struct ScreenBuffer *buffer,
+    struct strange_screensaver_instance *instance,
+    struct strange_screen_buffer *buffer,
     const struct strange_screensaver_frame *frame);
 void strange_screensaver_instance_cleanup(
     struct strange_screensaver_instance *instance);
