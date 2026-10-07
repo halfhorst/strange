@@ -17,7 +17,8 @@ static int validate_interactive_tty(void) {
   return 0;
 }
 
-static void seed_random_selection(void) {
+// Seeds both the `--random` pick and what the screensavers draw.
+static void seed_random(void) {
   struct timespec now = {0, 0};
   unsigned int seed = (unsigned int)getpid();
 
@@ -69,9 +70,7 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
-  if (cli_options.command == STRANGE_CLI_COMMAND_RUN_RANDOM) {
-    seed_random_selection();
-  }
+  seed_random();
   if (strange_cli_resolve_screensaver(&cli_options, &options.screensaver_descriptor,
                                       error_buffer, sizeof(error_buffer)) != 0) {
     fprintf(stderr, "%s\n", error_buffer);
