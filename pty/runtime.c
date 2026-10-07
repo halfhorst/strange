@@ -341,6 +341,11 @@ int strange_run(const struct strange_options *options) {
     goto cleanup;
   }
   strange_state_machine_init(&machine, options->timeout_seconds, &now);
+  if (options->start_now &&
+      handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_TIMEOUT, &now,
+                           &modes) == -1) {
+    goto cleanup;
+  }
 
   while (machine.state != STRANGE_RUNTIME_STATE_SHUTTING_DOWN) {
     fd_set read_fds;

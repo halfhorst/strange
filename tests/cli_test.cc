@@ -169,6 +169,36 @@ TEST(CliTest, ResolvesNamedBuiltInScreensaver) {
   EXPECT_STREQ(descriptor->name, "denabase");
 }
 
+TEST(CliTest, LeadingFlagsCombineInEitherOrder) {
+  char arg0[] = "strange";
+  char cover[] = "--cover-fullscreen";
+  char now[] = "--now";
+  char timeout[] = "--timeout";
+  char seconds[] = "9";
+  char name[] = "denabase";
+  strange_cli_options options = {};
+  char error[256] = {0};
+
+  char *plain[] = {arg0, name};
+  ASSERT_EQ(strange_cli_parse(2, plain, &options, error, sizeof(error)), 0);
+  EXPECT_FALSE(options.start_now);
+
+  char *both[] = {arg0, now, cover, timeout, seconds, name};
+  ASSERT_EQ(strange_cli_parse(6, both, &options, error, sizeof(error)), 0);
+  EXPECT_TRUE(options.start_now);
+  EXPECT_TRUE(options.cover_fullscreen);
+  EXPECT_EQ(options.timeout_seconds, 9);
+
+  char *reversed[] = {arg0, cover, now, name};
+  ASSERT_EQ(strange_cli_parse(4, reversed, &options, error, sizeof(error)), 0);
+  EXPECT_TRUE(options.start_now);
+  EXPECT_TRUE(options.cover_fullscreen);
+
+  char *misplaced[] = {arg0, timeout, seconds, now, name};
+  EXPECT_EQ(strange_cli_parse(5, misplaced, &options, error, sizeof(error)),
+            -1);
+}
+
 TEST(CliTest, CoverFullscreenIsOffUnlessGivenFirst) {
   char arg0[] = "strange";
   char flag[] = "--cover-fullscreen";

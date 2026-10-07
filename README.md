@@ -25,12 +25,17 @@ wakes it and restores the screen; `Ctrl-Q` disables it for the session.
     strange digital_rain
     strange --timeout 120 denabase
     strange --random denabase digital_rain
+    strange --now wave
     strange --list
 
 Only keystrokes count as activity, so output from a running job neither wakes
 the screensaver nor holds it off; whatever was printed meanwhile appears on
 waking. A full-screen program such as `vim`, `less` or `top` does hold it off
-while it runs. Pass `--cover-fullscreen` first to start over those too.
+while it runs. Pass `--cover-fullscreen` to start over those too.
+
+`--now` shows the screensaver as soon as `strange` starts, which is handy when
+writing one; the timeout applies once you wake it. Both flags go before the
+other arguments.
 
 ## Writing screensavers
 
