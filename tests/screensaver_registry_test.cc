@@ -354,7 +354,7 @@ TEST(ScreensaverRegistryTest, DenabaseHelixPairsTheBaseMarkedInTheTable) {
         << "step " << step << ": table marks " << base << " but the helix shows "
         << pair;
   }
-  EXPECT_GT(pairs_checked, 50);
+  EXPECT_GT(pairs_checked, 30);
 
   strange_screensaver_instance_cleanup(&instance);
   strange_screen_buffer_free(&buffer);

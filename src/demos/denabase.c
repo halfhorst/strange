@@ -157,7 +157,7 @@ static int compute_layout(const struct ScreenBuffer *buffer,
 
   right_half = buffer->w - layout->table_right - 1;
   layout->helix_center = layout->table_right + 1 + (right_half / 2);
-  layout->helix_radius = (right_half / 2) - 3;
+  layout->helix_radius = (right_half / 2) - 5;
   if (layout->helix_radius > STRAND_RADIUS) {
     layout->helix_radius = STRAND_RADIUS;
   }
@@ -215,7 +215,7 @@ static int strand_column(const struct layout *layout, double angle) {
 }
 
 /*
-  Draws the base and its complement between the strands as `-A====T-`: each
+  Draws the base and its complement between the strands as `--A====T--`: each
   base hangs off the strand it belongs to and the two are linked. The pair is
   left out where the strands are too close on this row to fit it.
 */
@@ -226,16 +226,18 @@ static void draw_base_pair(struct ScreenBuffer *buffer, int y, char base,
   int left = (base_is_left ? base_strand_max : other_strand_max) + 1;
   int right = (base_is_left ? other_strand_min : base_strand_min) - 1;
 
-  if (right - left < 4) {
+  if (right - left < 6) {
     return;
   }
 
   put(buffer, '-', left, y);
-  put(buffer, base_is_left ? base : complement(base), left + 1, y);
-  for (int x = left + 2; x < right - 1; x++) {
+  put(buffer, '-', left + 1, y);
+  put(buffer, base_is_left ? base : complement(base), left + 2, y);
+  for (int x = left + 3; x < right - 2; x++) {
     put(buffer, '=', x, y);
   }
-  put(buffer, base_is_left ? complement(base) : base, right - 1, y);
+  put(buffer, base_is_left ? complement(base) : base, right - 2, y);
+  put(buffer, '-', right - 1, y);
   put(buffer, '-', right, y);
 }
 
@@ -284,7 +286,9 @@ static void draw_helix(const struct denabase_state *state,
       if (left - 2 > layout->table_right) {
         put(buffer, '>', left - 2, y);
       }
-      put(buffer, '<', right + 2, y);
+      for (int x = right + 2; x < right + 5; x++) {
+        put(buffer, '<', x, y);
+      }
     }
   }
 }
