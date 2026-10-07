@@ -15,7 +15,7 @@ extern "C" {
   the meaning of the callbacks. It changes whenever a library built against the
   old ones would no longer work.
 */
-#define STRANGE_SCREENSAVER_API_VERSION 2
+#define STRANGE_SCREENSAVER_API_VERSION 1
 
 #define STRANGE_DYNAMIC_DESCRIPTOR_SYMBOL "strange_screensaver_descriptor"
 #define STRANGE_LUA_DESCRIPTOR_NAME_FIELD "name"
