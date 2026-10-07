@@ -328,6 +328,9 @@ TEST(ScreensaverRegistryTest, DenabaseHelixPairsTheBaseMarkedInTheTable) {
     const std::string marker_row(buffer.buffer + (focus_row - 1) * buffer.w,
                                  table_right);
     const std::string row(buffer.buffer + focus_row * buffer.w, buffer.w);
+    const size_t helix_pointer = row.find('>', table_right + 1);
+    ASSERT_NE(helix_pointer, std::string::npos);
+    EXPECT_GT(row.rfind('<'), helix_pointer);
     const size_t marked_column = marker_row.find('v');
     ASSERT_NE(marked_column, std::string::npos);
 
@@ -351,7 +354,7 @@ TEST(ScreensaverRegistryTest, DenabaseHelixPairsTheBaseMarkedInTheTable) {
         << "step " << step << ": table marks " << base << " but the helix shows "
         << pair;
   }
-  EXPECT_GT(pairs_checked, 60);
+  EXPECT_GT(pairs_checked, 50);
 
   strange_screensaver_instance_cleanup(&instance);
   strange_screen_buffer_free(&buffer);

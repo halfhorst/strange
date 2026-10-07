@@ -12,9 +12,10 @@
 
   The two halves read the same sequence. Each base pair is a rung of the
   helix, labelled with the base on one strand and its complement on the other.
-  The rung level with the middle of the screen is the current base: the table
-  keeps the row holding it in its focus row and marks its column. When the
-  helix has scrolled through every base of that row, the table moves up a row.
+  The rung level with the middle of the screen is the current base, pointed at
+  from both sides of the helix: the table keeps the row holding it in its focus
+  row and marks its column. When the helix has scrolled through every base of
+  that row, the table moves up a row.
 
   The helix is two sinusoids over the screen row, the second mirrored and a
   little ahead in phase, which is what gives the wide and narrow grooves.
