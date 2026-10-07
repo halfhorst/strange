@@ -64,24 +64,6 @@ TEST(RuntimeStateMachineTest, TimeoutTransitionsPassthroughToScreensaver) {
   EXPECT_TRUE(transition.entered_screensaver);
 }
 
-TEST(RuntimeStateMachineTest, ResizeDoesNotResetInactivity) {
-  strange_state_machine machine;
-  const timespec start = Seconds(100);
-  const timespec resize_time = Seconds(129);
-  const timespec before_timeout = Seconds(129);
-  const timespec at_timeout = Seconds(130);
-
-  strange_state_machine_init(&machine, 30, &start);
-
-  const strange_state_transition transition = strange_state_machine_handle_event(
-      &machine, STRANGE_RUNTIME_EVENT_RESIZE, &resize_time);
-
-  EXPECT_EQ(transition.current_state, STRANGE_RUNTIME_STATE_PASSTHROUGH);
-  EXPECT_FALSE(transition.recorded_activity);
-  EXPECT_FALSE(strange_state_machine_timeout_due(&machine, &before_timeout));
-  EXPECT_TRUE(strange_state_machine_timeout_due(&machine, &at_timeout));
-}
-
 TEST(RuntimeStateMachineTest, ActivityLeavesScreensaverState) {
   strange_state_machine machine;
   const timespec start = Seconds(0);

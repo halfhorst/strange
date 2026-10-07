@@ -89,8 +89,6 @@ struct strange_state_transition strange_state_machine_handle_event(
       machine->state = STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE;
     }
     break;
-  case STRANGE_RUNTIME_EVENT_RESIZE:
-    break;
   case STRANGE_RUNTIME_EVENT_DISABLE:
     if (machine->state != STRANGE_RUNTIME_STATE_SHUTTING_DOWN) {
       machine->state = STRANGE_RUNTIME_STATE_SCREENSAVER_DISABLED;
