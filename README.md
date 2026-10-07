@@ -22,9 +22,9 @@ want to monitor. It starts a child shell, forwards input and output during
 normal use, and starts a screensaver after a period of inactivity. Any key
 wakes it and restores the screen; `Ctrl-Q` disables it for the session.
 
-    strange digital_rain
+    strange digital-rain
     strange --timeout 120 denabase
-    strange --random denabase digital_rain
+    strange --random denabase digital-rain
     strange --now wave
     strange --list
 
@@ -40,7 +40,7 @@ and `STRANGE_COVER_FULLSCREEN`, which describe how the session started.
 `strange` refuses to start inside a terminal it is already wrapping, so a shell
 startup file can launch it with:
 
-    strange --status >/dev/null || exec strange digital_rain
+    strange --status >/dev/null || exec strange digital-rain
 
 `--now` runs only the screensaver, with no shell underneath, and exits on any
 key. It is the quick way to try one while writing it: if the screensaver

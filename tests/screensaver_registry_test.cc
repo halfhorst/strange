@@ -180,7 +180,7 @@ TEST(ScreensaverRegistryTest, BuiltinRegistryContainsCurrentBuiltInDemos) {
     if (std::strcmp(descriptors[index]->name, "denabase") == 0) {
       saw_denabase = true;
     }
-    if (std::strcmp(descriptors[index]->name, "digital_rain") == 0) {
+    if (std::strcmp(descriptors[index]->name, "digital-rain") == 0) {
       saw_digital_rain = true;
     }
   }
@@ -201,11 +201,11 @@ TEST(ScreensaverRegistryTest, BuiltinRegistryFindsDenabaseDescriptor) {
 
 TEST(ScreensaverRegistryTest, BuiltinRegistryFindsDigitalRainDescriptor) {
   const strange_screensaver_descriptor *descriptor =
-      strange_builtin_screensaver_find("digital_rain");
+      strange_builtin_screensaver_find("digital-rain");
 
   ASSERT_NE(descriptor, nullptr);
   EXPECT_EQ(strange_screensaver_descriptor_validate(descriptor), 0);
-  EXPECT_STREQ(descriptor->name, "digital_rain");
+  EXPECT_STREQ(descriptor->name, "digital-rain");
   EXPECT_EQ(strange_screensaver_character_width(descriptor), 3);
 }
 
@@ -220,7 +220,7 @@ TEST(ScreensaverRegistryTest, CatalogDiscoversOnlyDirectUserArtifacts) {
   home.CreateScreensaverDir();
   home.WriteFile(home.screensaver_dir() / "denabase.lua", "return {}");
   home.WriteFile(home.screensaver_dir() / "notes.txt", "ignore");
-  home.WriteFile(home.screensaver_dir() / "nested" / "digital_rain.lua",
+  home.WriteFile(home.screensaver_dir() / "nested" / "digital-rain.lua",
                  "return {}");
 
   ASSERT_EQ(
@@ -234,7 +234,7 @@ TEST(ScreensaverRegistryTest, CatalogDiscoversOnlyDirectUserArtifacts) {
   EXPECT_EQ(record->source, STRANGE_SCREENSAVER_RECORD_SOURCE_LUA);
   EXPECT_NE(std::string(record->path).find("denabase.lua"), std::string::npos);
 
-  record = strange_screensaver_catalog_find(&catalog, "digital_rain");
+  record = strange_screensaver_catalog_find(&catalog, "digital-rain");
   ASSERT_NE(record, nullptr);
   EXPECT_EQ(record->source, STRANGE_SCREENSAVER_RECORD_SOURCE_BUILTIN);
 
@@ -299,7 +299,7 @@ TEST(ScreensaverRegistryTest, DenabaseBuiltinRendersThroughSharedContract) {
 
 TEST(ScreensaverRegistryTest, DigitalRainBuiltinRendersThroughSharedContract) {
   const strange_screensaver_descriptor *descriptor =
-      strange_builtin_screensaver_find("digital_rain");
+      strange_builtin_screensaver_find("digital-rain");
   strange_screensaver_instance instance = {};
   strange_screensaver_frame frame = {};
   ScreenBuffer buffer = {};

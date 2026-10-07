@@ -75,7 +75,7 @@ TEST(CliTest, ParsesNamedScreensaverWithExplicitTimeout) {
   char arg0[] = "strange";
   char arg1[] = "--timeout";
   char arg2[] = "7";
-  char arg3[] = "digital_rain";
+  char arg3[] = "digital-rain";
   char *argv[] = {arg0, arg1, arg2, arg3};
   strange_cli_options options = {};
   char error[256] = {0};
@@ -83,14 +83,14 @@ TEST(CliTest, ParsesNamedScreensaverWithExplicitTimeout) {
   ASSERT_EQ(strange_cli_parse(4, argv, &options, error, sizeof(error)), 0);
   EXPECT_EQ(options.command, STRANGE_CLI_COMMAND_RUN_NAMED);
   EXPECT_EQ(options.timeout_seconds, 7);
-  EXPECT_STREQ(options.screensaver_name, "digital_rain");
+  EXPECT_STREQ(options.screensaver_name, "digital-rain");
 }
 
 TEST(CliTest, ParsesRandomModeWithMultipleNames) {
   char arg0[] = "strange";
   char arg1[] = "--random";
   char arg2[] = "denabase";
-  char arg3[] = "digital_rain";
+  char arg3[] = "digital-rain";
   char *argv[] = {arg0, arg1, arg2, arg3};
   strange_cli_options options = {};
   char error[256] = {0};
@@ -99,7 +99,7 @@ TEST(CliTest, ParsesRandomModeWithMultipleNames) {
   EXPECT_EQ(options.command, STRANGE_CLI_COMMAND_RUN_RANDOM);
   EXPECT_EQ(options.random_name_count, 2U);
   EXPECT_STREQ(options.random_names[0], "denabase");
-  EXPECT_STREQ(options.random_names[1], "digital_rain");
+  EXPECT_STREQ(options.random_names[1], "digital-rain");
 }
 
 TEST(CliTest, ParsesListMode) {
@@ -144,7 +144,7 @@ TEST(CliTest, RejectsTimeoutWithRandomMode) {
 TEST(CliTest, RejectsExtraPositionalArguments) {
   char arg0[] = "strange";
   char arg1[] = "denabase";
-  char arg2[] = "digital_rain";
+  char arg2[] = "digital-rain";
   char *argv[] = {arg0, arg1, arg2};
   strange_cli_options options = {};
   char error[256] = {0};
@@ -315,7 +315,7 @@ TEST(CliTest, RandomResolutionChoosesProvidedBuiltIn) {
   char arg0[] = "strange";
   char arg1[] = "--random";
   char arg2[] = "denabase";
-  char arg3[] = "digital_rain";
+  char arg3[] = "digital-rain";
   char *argv[] = {arg0, arg1, arg2, arg3};
   strange_cli_options options = {};
   const strange_screensaver_descriptor *descriptor = nullptr;
@@ -328,7 +328,7 @@ TEST(CliTest, RandomResolutionChoosesProvidedBuiltIn) {
             0);
   ASSERT_NE(descriptor, nullptr);
   EXPECT_TRUE(std::strcmp(descriptor->name, "denabase") == 0 ||
-              std::strcmp(descriptor->name, "digital_rain") == 0);
+              std::strcmp(descriptor->name, "digital-rain") == 0);
 }
 
 TEST(CliTest, PrintListSeparatesBuiltInAndUserScreensavers) {
@@ -348,11 +348,11 @@ TEST(CliTest, PrintListSeparatesBuiltInAndUserScreensavers) {
   EXPECT_NE(output.find("Built-in screensavers:\n"), std::string::npos);
   EXPECT_NE(output.find("User screensavers:\n"), std::string::npos);
   EXPECT_NE(builtin_section.find("  denabase\n"), std::string::npos);
-  EXPECT_NE(builtin_section.find("  digital_rain\n"), std::string::npos);
+  EXPECT_NE(builtin_section.find("  digital-rain\n"), std::string::npos);
   EXPECT_EQ(builtin_section.find("  custom\n"), std::string::npos);
   EXPECT_NE(user_section.find("  custom\n"), std::string::npos);
   EXPECT_NE(user_section.find("  denabase\n"), std::string::npos);
-  EXPECT_EQ(user_section.find("  digital_rain\n"), std::string::npos);
+  EXPECT_EQ(user_section.find("  digital-rain\n"), std::string::npos);
 }
 
 TEST(CliTest, PrintListDoesNotValidateUserArtifacts) {
