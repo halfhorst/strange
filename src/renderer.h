@@ -1,7 +1,7 @@
-#include <stdio.h>
-
 #ifndef RENDERER_H_
 #define RENDERER_H_
+
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -21,12 +21,12 @@
   little ahead in phase, which is what gives the wide and narrow grooves.
 
   TODO: A writeup on how to flatten the 3D helix into 2D
-  TODO: Use a sequence from a real organizm.
+  TODO: Use a sequence from a real organism.
 */
-#include "../screensaver_registry.h"
-
 #ifndef DENABASE_H_
 #define DENABASE_H_
+
+#include "../screensaver_registry.h"
 
 #define DENABASE_CHAR_WIDTH 1
 

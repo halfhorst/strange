@@ -4,7 +4,7 @@
 
   The effect changed a bit from movie to movie, and has been reproduced many
   times. I prefer the look from the original movie, and it also suits the
-  limitations of a terminal bettwe as well. Key features:
+  limitations of a terminal better as well. Key features of the original:
 
   * Less of a rain-like quality, uniform width
   * Characters stream (quite quickly) down from the top of the screen
@@ -22,15 +22,16 @@
   are incremented at the same rate, giving a scrolling effect. Characters
   within the region are candidates to be shuffled.
 
-  True to the original effect, the demo renders UTF-8 katakana characters
-  (not mirrored) but respects the request for ASCII.
+  True to the original effect, the demo renders UTF-8 katakana characters,
+  though not mirrored. The brighter leading edge is left out because the
+  renderer has no colour or brightness.
 
   TODO: Consider trying to switch to row-oriented memory copies
 */
-#include "../screensaver_registry.h"
-
 #ifndef DIGITAL_RAIN_H_
 #define DIGITAL_RAIN_H_
+
+#include "../screensaver_registry.h"
 
 #define DIGITAL_RAIN_CHAR_WIDTH 3
 

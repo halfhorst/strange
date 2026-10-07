@@ -20,27 +20,33 @@ on my second monitor that is calming and visual. `strange` fits that role.
 `strange` is a PTY-backed terminal wrapper. Run it as the terminal session you
 want to monitor. It starts a child shell, forwards input and output during
 normal use, and starts a screensaver after a period of inactivity. Any key
-wakes it and restores the screen. `Ctrl-Q` turns it off for the rest of the
+wakes it and restores the screen. `Ctrl-Q` disables it for the rest of the
 session, whether or not it is showing, and a notice in the top right corner
 confirms it. `--disable-key ctrl-g` picks another key and `--disable-key none`
 reserves none.
 
     strange digital-rain
     strange --timeout 120 denabase
-    strange --random denabase digital-rain
-    strange --now wave
+    strange --timeout 120 --random denabase digital-rain
+    strange --now denabase
     strange --list
+
+Options such as `--timeout` come before the screensaver name or `--random`.
 
 Only keystrokes count as activity, so output from a running job neither wakes
 the screensaver nor holds it off; whatever was printed meanwhile appears on
-waking. A full-screen program such as `vim`, `less` or `top` does hold it off
-while it runs. Pass `--cover-fullscreen` to start over those too.
+waking. If more than 16 MB of output builds up, the screensaver gives way so
+that it can be shown. A full-screen program such as `vim`, `less` or `top`
+does hold it off while it runs. Pass `--cover-fullscreen` to start over those
+too.
 
 `strange --status` says whether the current terminal is running under
 `strange` and with what screensaver and timeout, and exits 0 if it is. The
-wrapped shell also gets `STRANGE_TTY`, `STRANGE_SCREENSAVER`, `STRANGE_TIMEOUT`
-`STRANGE_COVER_FULLSCREEN` and `STRANGE_DISABLE_KEY`, which describe how the
-session started.
+wrapped shell also gets `STRANGE_TTY`, `STRANGE_SCREENSAVER`,
+`STRANGE_TIMEOUT`, `STRANGE_COVER_FULLSCREEN` and `STRANGE_DISABLE_KEY`. Both
+describe how the session started, so neither shows that the screensaver has
+since been disabled.
+
 `strange` refuses to start inside a terminal it is already wrapping, so a shell
 startup file can launch it with:
 
@@ -98,8 +104,9 @@ rest of the session and prints the reason; the shell carries on.
 
 ## Building
 
-Run `make` to build `strange` and `make test` to run the tests, which need
-GoogleTest. The code is C99 and uses POSIX.1-2008 plus `SIGWINCH` and the
+Run `make` to build `strange` and `make test` to run the tests. The tests need
+GoogleTest, which is looked for under Homebrew's prefix; pass
+`GTEST_PREFIX=/some/path` to `make` if it is elsewhere. The code is C99 and uses POSIX.1-2008 plus `SIGWINCH` and the
 `TIOCGWINSZ`/`TIOCSWINSZ` ioctls. The Makefile needs GNU make. Lua 5.4 is
 built from the sources in `third_party/`.
 
@@ -113,4 +120,5 @@ rterm. It was helpful to look at and the raymarched scene is really nice.
     * SDF Rotating Cube
     * Metaballs
 * Reload a screensaver when its file changes
-* Optional watermark in the terminal to know you are in "screensaver mode"
+* Let `strange --status` report live state, and change settings in a running
+  session
