@@ -14,6 +14,7 @@ static struct termios orig_termios;
 static int raw_mode_enabled = 0;
 static int screensaver_visible = 0;
 static int on_alternate_screen = 0;
+static int preview_mode = 0;
 static struct strange_render_context screensaver_context;
 static int screensaver_context_ready = 0;
 static const struct strange_screensaver_descriptor *selected_descriptor = NULL;
@@ -75,6 +76,8 @@ int strange_set_screensaver_descriptor(
   selected_descriptor = descriptor;
   return 0;
 }
+
+void strange_set_screensaver_preview(int preview) { preview_mode = preview; }
 
 void disable_raw_mode(void) {
   if (!raw_mode_enabled) {
@@ -178,6 +181,6 @@ int render_screensaver_frame(const struct timespec *now) {
                                           &frame) == -1) {
     return -1;
   }
-  render_screensaver_watermark(&screensaver_context.buffer);
+  render_screensaver_watermark(&screensaver_context.buffer, preview_mode);
   return strange_render_context_present(&screensaver_context);
 }

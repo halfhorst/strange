@@ -308,6 +308,54 @@ static int sync_resize_if_needed(struct strange_state_machine *machine,
   return 0;
 }
 
+int strange_preview(const struct strange_screensaver_descriptor *descriptor) {
+  struct timespec now;
+  char keys[64];
+  int failed = 0;
+
+  if (strange_set_screensaver_descriptor(descriptor) == -1 ||
+      strange_install_signal_handlers() == -1) {
+    fprintf(stderr, "Failed to configure screensaver\n");
+    return 1;
+  }
+
+  strange_set_screensaver_preview(1);
+  enable_raw_mode();
+  failed = enter_screensaver(1) == -1;
+
+  while (!failed && !strange_shutdown_requested()) {
+    fd_set read_fds;
+    struct timeval timeout = {0, 0};
+    int ready = 0;
+
+    if (monotonic_now(&now) == -1 || render_screensaver_frame(&now) == -1) {
+      failed = 1;
+      break;
+    }
+
+    FD_ZERO(&read_fds);
+    FD_SET(STDIN_FILENO, &read_fds);
+    timeout.tv_usec = frame_wait_usec(&now);
+    ready = select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout);
+    if (ready > 0) {
+      (void)read(STDIN_FILENO, keys, sizeof(keys));
+      break;
+    }
+    if (ready < 0 && errno != EINTR) {
+      failed = 1;
+    }
+  }
+
+  leave_screensaver(1);
+  disable_raw_mode();
+  strange_set_screensaver_preview(0);
+
+  if (failed) {
+    fprintf(stderr, "strange: %s\n", strange_screensaver_error());
+  }
+  return failed;
+}
+
 int strange_run(const struct strange_options *options) {
   int status = 1;
   int runtime_status = 0;
@@ -341,11 +389,6 @@ int strange_run(const struct strange_options *options) {
     goto cleanup;
   }
   strange_state_machine_init(&machine, options->timeout_seconds, &now);
-  if (options->start_now &&
-      handle_runtime_event(&machine, STRANGE_RUNTIME_EVENT_TIMEOUT, &now,
-                           &modes) == -1) {
-    goto cleanup;
-  }
 
   while (machine.state != STRANGE_RUNTIME_STATE_SHUTTING_DOWN) {
     fd_set read_fds;

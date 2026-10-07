@@ -38,6 +38,19 @@ static int parse_positive_seconds(const char *value, int *timeout_seconds) {
   return 0;
 }
 
+static int reject_options_with_preview(const struct strange_cli_options *options,
+                                       int saw_timeout, char *error_buffer,
+                                       size_t error_buffer_size) {
+  if (options->preview && (saw_timeout || options->cover_fullscreen)) {
+    set_error(error_buffer, error_buffer_size,
+              "`--now` runs only the screensaver, so `--timeout` and "
+              "`--cover-fullscreen` do not apply");
+    return -1;
+  }
+
+  return 0;
+}
+
 int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *options,
                       char *error_buffer, size_t error_buffer_size) {
   int saw_timeout = 0;
@@ -67,7 +80,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         return -1;
       }
       if (strcmp(argv[index], "--now") == 0) {
-        options->start_now = 1;
+        options->preview = 1;
       } else {
         options->cover_fullscreen = 1;
       }
@@ -125,6 +138,11 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         return -1;
       }
 
+      if (reject_options_with_preview(options, 0, error_buffer,
+                                      error_buffer_size) == -1) {
+        return -1;
+      }
+
       options->command = STRANGE_CLI_COMMAND_RUN_RANDOM;
       options->random_names = (const char *const *)&argv[index + 1];
       options->random_name_count = (size_t)(argc - index - 1);
@@ -163,7 +181,8 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
     return -1;
   }
 
-  return 0;
+  return reject_options_with_preview(options, saw_timeout, error_buffer,
+                                     error_buffer_size);
 }
 
 int strange_cli_resolve_screensaver(
@@ -234,13 +253,16 @@ int strange_cli_resolve_screensaver(
 }
 
 void strange_cli_print_usage(FILE *stream, const char *prog_name) {
-  fprintf(stream, "Usage: %s [--now] [--cover-fullscreen] <screensaver-name>\n",
+  fprintf(stream, "Usage: %s [--cover-fullscreen] <screensaver-name>\n",
           prog_name);
-  fprintf(stream, "       %s [--now] [--cover-fullscreen] --random "
+  fprintf(stream, "       %s [--cover-fullscreen] --random "
                   "<screensaver-name>...\n",
           prog_name);
-  fprintf(stream, "       %s [--now] [--cover-fullscreen] --timeout <seconds> "
+  fprintf(stream, "       %s [--cover-fullscreen] --timeout <seconds> "
                   "<screensaver-name>\n",
+          prog_name);
+  fprintf(stream, "       %s --now <screensaver-name>\n", prog_name);
+  fprintf(stream, "       %s --now --random <screensaver-name>...\n",
           prog_name);
   fprintf(stream, "       %s --list\n", prog_name);
   fprintf(stream, "       %s -h | --help\n", prog_name);
@@ -248,8 +270,8 @@ void strange_cli_print_usage(FILE *stream, const char *prog_name) {
   fprintf(stream, "  --timeout seconds: inactivity before the screensaver "
                   "starts (default: %d)\n",
           STRANGE_DEFAULT_TIMEOUT_SECONDS);
-  fprintf(stream, "  --now: show the screensaver straight away; the "
-                  "timeout applies after waking\n");
+  fprintf(stream, "  --now: run only the screensaver, without a shell, "
+                  "until a key is pressed\n");
   fprintf(stream, "  --cover-fullscreen: also start over full-screen programs "
                   "such as vim or top,\n"
                   "                      which otherwise hold the screensaver "

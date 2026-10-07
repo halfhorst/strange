@@ -108,7 +108,7 @@ TEST(RendererCoreTest, WatermarkRendersInstructionsIntoTopRightCorner) {
 
   ASSERT_EQ(strange_screen_buffer_init(&buffer, 30, 4, 1), 0);
   strange_screen_buffer_clear(&buffer);
-  render_screensaver_watermark(&buffer);
+  render_screensaver_watermark(&buffer, 0);
 
   std::string row0(buffer.buffer, buffer.w);
   std::string row1(buffer.buffer + buffer.w, buffer.w);

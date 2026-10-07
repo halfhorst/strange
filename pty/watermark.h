@@ -3,6 +3,6 @@
 
 struct ScreenBuffer;
 
-void render_screensaver_watermark(struct ScreenBuffer *buffer);
+void render_screensaver_watermark(struct ScreenBuffer *buffer, int preview);
 
 #endif

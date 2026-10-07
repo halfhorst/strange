@@ -33,9 +33,9 @@ the screensaver nor holds it off; whatever was printed meanwhile appears on
 waking. A full-screen program such as `vim`, `less` or `top` does hold it off
 while it runs. Pass `--cover-fullscreen` to start over those too.
 
-`--now` shows the screensaver as soon as `strange` starts, which is handy when
-writing one; the timeout applies once you wake it. Both flags go before the
-other arguments.
+`--now` runs only the screensaver, with no shell underneath, and exits on any
+key. It is the quick way to try one while writing it: if the screensaver
+fails, the reason is printed and the exit status is 1.
 
 ## Writing screensavers
 

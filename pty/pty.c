@@ -43,7 +43,7 @@ static int install_signal_handler(int signo, void (*handler)(int)) {
   return sigaction(signo, &action, NULL);
 }
 
-static int install_signal_handlers(void) {
+int strange_install_signal_handlers(void) {
   if (install_signal_handler(SIGINT, request_shutdown) == -1) {
     return -1;
   }
@@ -337,7 +337,7 @@ int setup_pty_and_shell(void) {
     return -1;
   }
 
-  if (install_signal_handlers() == -1) {
+  if (strange_install_signal_handlers() == -1) {
     perror("sigaction");
     cleanup_pty();
     return -1;

@@ -6,6 +6,7 @@
 extern int master_fd;
 extern pid_t shell_pid;
 
+int strange_install_signal_handlers(void);
 int setup_pty_and_shell(void);
 void cleanup_pty(void);
 int poll_shell_exit(int *status);

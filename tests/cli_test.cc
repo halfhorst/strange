@@ -169,10 +169,11 @@ TEST(CliTest, ResolvesNamedBuiltInScreensaver) {
   EXPECT_STREQ(descriptor->name, "denabase");
 }
 
-TEST(CliTest, LeadingFlagsCombineInEitherOrder) {
+TEST(CliTest, NowSelectsPreviewAndRejectsSessionOptions) {
   char arg0[] = "strange";
   char cover[] = "--cover-fullscreen";
   char now[] = "--now";
+  char random[] = "--random";
   char timeout[] = "--timeout";
   char seconds[] = "9";
   char name[] = "denabase";
@@ -181,21 +182,29 @@ TEST(CliTest, LeadingFlagsCombineInEitherOrder) {
 
   char *plain[] = {arg0, name};
   ASSERT_EQ(strange_cli_parse(2, plain, &options, error, sizeof(error)), 0);
-  EXPECT_FALSE(options.start_now);
+  EXPECT_FALSE(options.preview);
 
-  char *both[] = {arg0, now, cover, timeout, seconds, name};
-  ASSERT_EQ(strange_cli_parse(6, both, &options, error, sizeof(error)), 0);
-  EXPECT_TRUE(options.start_now);
-  EXPECT_TRUE(options.cover_fullscreen);
-  EXPECT_EQ(options.timeout_seconds, 9);
+  char *named[] = {arg0, now, name};
+  ASSERT_EQ(strange_cli_parse(3, named, &options, error, sizeof(error)), 0);
+  EXPECT_TRUE(options.preview);
+  EXPECT_STREQ(options.screensaver_name, "denabase");
 
-  char *reversed[] = {arg0, cover, now, name};
-  ASSERT_EQ(strange_cli_parse(4, reversed, &options, error, sizeof(error)), 0);
-  EXPECT_TRUE(options.start_now);
-  EXPECT_TRUE(options.cover_fullscreen);
+  char *with_random[] = {arg0, now, random, name};
+  ASSERT_EQ(strange_cli_parse(4, with_random, &options, error, sizeof(error)),
+            0);
+  EXPECT_TRUE(options.preview);
+  EXPECT_EQ(options.command, STRANGE_CLI_COMMAND_RUN_RANDOM);
 
-  char *misplaced[] = {arg0, timeout, seconds, now, name};
-  EXPECT_EQ(strange_cli_parse(5, misplaced, &options, error, sizeof(error)),
+  char *with_timeout[] = {arg0, now, timeout, seconds, name};
+  EXPECT_EQ(strange_cli_parse(5, with_timeout, &options, error, sizeof(error)),
+            -1);
+
+  char *with_cover[] = {arg0, cover, now, name};
+  EXPECT_EQ(strange_cli_parse(4, with_cover, &options, error, sizeof(error)),
+            -1);
+
+  char *misplaced[] = {arg0, name, now};
+  EXPECT_EQ(strange_cli_parse(3, misplaced, &options, error, sizeof(error)),
             -1);
 }
 

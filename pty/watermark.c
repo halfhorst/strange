@@ -3,17 +3,22 @@
 #include "src/renderer.h"
 #include "watermark.h"
 
-void render_screensaver_watermark(struct ScreenBuffer *buffer) {
-  static const char *lines[] = {
+void render_screensaver_watermark(struct ScreenBuffer *buffer, int preview) {
+  static const char *session_lines[] = {
       " any key wakes ",
       " Ctrl-Q disables ",
   };
+  static const char *preview_lines[] = {
+      " any key exits ",
+  };
+  const char **lines = preview ? preview_lines : session_lines;
+  size_t line_count = preview ? 1 : 2;
 
   if (buffer == NULL) {
     return;
   }
 
-  for (size_t row = 0; row < (sizeof(lines) / sizeof(lines[0])); ++row) {
+  for (size_t row = 0; row < line_count; ++row) {
     size_t line_length = strlen(lines[row]);
     int x = 0;
 

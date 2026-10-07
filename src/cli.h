@@ -18,7 +18,7 @@ struct strange_cli_options {
   enum strange_cli_command command;
   int timeout_seconds;
   int cover_fullscreen;
-  int start_now;
+  int preview;
   const char *screensaver_name;
   const char *const *random_names;
   size_t random_name_count;
