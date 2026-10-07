@@ -1,6 +1,6 @@
 build/
 strange
-runtime_state_test
+strange_test
 
 # Context
 *.md

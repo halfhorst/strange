@@ -5,7 +5,8 @@ LUA_CFLAGS = -std=c99 -O2 -DLUA_USE_POSIX
 LUA_OBJECTS = $(patsubst %.c,%.o,$(wildcard $(LUA_DIR)/*.c))
 CPPFLAGS = -I. -I$(LUA_DIR)
 DEPFLAGS = -MMD -MP
-LDFLAGS = -lm
+LDFLAGS =
+LDLIBS = -lm
 PLUGIN_EXTENSION = .so
 PLUGIN_LDFLAGS = -shared -fPIC
 
@@ -15,7 +16,8 @@ PLUGIN_LDFLAGS = -shared -fPIC
 # macOS does that by default.
 ifeq ($(shell uname -s),Linux)
 CPPFLAGS += -D_XOPEN_SOURCE=700
-LDFLAGS += -ldl -rdynamic
+LDFLAGS += -rdynamic
+LDLIBS += -ldl
 endif
 ifeq ($(shell uname -s),Darwin)
 PLUGIN_EXTENSION = .dylib
@@ -27,7 +29,7 @@ GTEST_LDLIBS = -L$(GTEST_PREFIX)/lib -lgtest -lgtest_main -pthread
 
 TARGET = strange
 OBJECTS = main.o pty/runtime.o pty/pty.o pty/screensaver.o pty/state_machine.o pty/terminal_modes.o pty/watermark.o src/cli.o src/renderer.o src/screensaver_registry.o src/screensaver_loader.o src/lua_screensaver.o src/session.o src/keys.o src/demos/denabase.o src/demos/digital_rain.o $(LUA_OBJECTS)
-TEST_TARGET = runtime_state_test
+TEST_TARGET = strange_test
 TEST_OBJECTS = tests/cli_test.o tests/runtime_state_test.o tests/renderer_test.o tests/screensaver_registry_test.o tests/screensaver_loader_test.o tests/session_test.o tests/keys_test.o tests/terminal_modes_test.o pty/state_machine.o pty/terminal_modes.o pty/watermark.o src/cli.o src/renderer.o src/screensaver_registry.o src/screensaver_loader.o src/lua_screensaver.o src/session.o src/keys.o src/demos/denabase.o src/demos/digital_rain.o $(LUA_OBJECTS)
 
 EXAMPLES = examples/bounce$(PLUGIN_EXTENSION)
@@ -40,13 +42,14 @@ all: $(TARGET)
 examples: $(EXAMPLES)
 
 debug: CFLAGS += -g
+debug: LUA_CFLAGS += -g
 debug: $(TARGET)
 
 test: $(TEST_TARGET) $(EXAMPLES) $(TEST_FIXTURES)
 	./$(TEST_TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 $(LUA_DIR)/%.o: $(LUA_DIR)/%.c
 	$(CC) $(LUA_CFLAGS) -c $< -o $@
@@ -67,9 +70,9 @@ tests/%.o: tests/%.cc
 -include $(OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d)
 
 $(TEST_TARGET): $(TEST_OBJECTS)
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(GTEST_LDLIBS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $@ $(GTEST_LDLIBS) $(LDLIBS)
 
 clean:
-	rm -f main.o pty/*.o src/*.o src/demos/*.o tests/*.o strange $(TEST_TARGET) strangeland foo
+	rm -f main.o pty/*.o src/*.o src/demos/*.o tests/*.o $(TARGET) $(TEST_TARGET)
 	rm -f main.d pty/*.d src/*.d src/demos/*.d tests/*.d
 	rm -f $(LUA_OBJECTS) $(EXAMPLES) $(TEST_FIXTURES)
