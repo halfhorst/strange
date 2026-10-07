@@ -293,7 +293,7 @@ static int disable_from_key(struct strange_state_machine *machine,
     return -1;
   }
   if (!was_disabled) {
-    show_notice(" strange: screensaver off for this session ");
+    show_notice(" strange: screensaver disabled for this session ");
   }
 
   return 0;

@@ -127,18 +127,24 @@ TEST(CliTest, RejectsZeroTimeout) {
             std::string::npos);
 }
 
-TEST(CliTest, RejectsTimeoutWithRandomMode) {
+TEST(CliTest, TimeoutAppliesToRandomModeAndMustComeFirst) {
   char arg0[] = "strange";
-  char arg1[] = "--timeout";
-  char arg2[] = "5";
-  char arg3[] = "--random";
-  char arg4[] = "denabase";
-  char *argv[] = {arg0, arg1, arg2, arg3, arg4};
+  char timeout[] = "--timeout";
+  char seconds[] = "5";
+  char random[] = "--random";
+  char name[] = "denabase";
   strange_cli_options options = {};
   char error[256] = {0};
 
-  ASSERT_EQ(strange_cli_parse(5, argv, &options, error, sizeof(error)), -1);
-  EXPECT_NE(std::string(error).find("`--random`"), std::string::npos);
+  char *with_random[] = {arg0, timeout, seconds, random, name};
+  ASSERT_EQ(strange_cli_parse(5, with_random, &options, error, sizeof(error)),
+            0);
+  EXPECT_EQ(options.command, STRANGE_CLI_COMMAND_RUN_RANDOM);
+  EXPECT_EQ(options.timeout_seconds, 5);
+
+  char *after_name[] = {arg0, name, timeout, seconds};
+  EXPECT_EQ(strange_cli_parse(4, after_name, &options, error, sizeof(error)),
+            -1);
 }
 
 TEST(CliTest, RejectsExtraPositionalArguments) {

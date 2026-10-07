@@ -118,12 +118,9 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
                   "`--timeout` may only be provided once");
         return -1;
       }
-      if (options->screensaver_name != NULL ||
-          options->command == STRANGE_CLI_COMMAND_RUN_RANDOM ||
-          options->command == STRANGE_CLI_COMMAND_LIST) {
+      if (index != 1 + leading_flag_count) {
         set_error(error_buffer, error_buffer_size,
-                  "`--timeout` only supports `strange --timeout <seconds> "
-                  "<screensaver-name>`");
+                  "`--timeout` must come before the other arguments");
         return -1;
       }
       if (index + 1 >= argc ||
@@ -134,6 +131,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         return -1;
       }
       saw_timeout = 1;
+      leading_flag_count += 2;
       ++index;
       continue;
     }
@@ -159,8 +157,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
     }
 
     if (strcmp(argv[index], "--random") == 0) {
-      if (index != 1 + leading_flag_count ||
-          options->timeout_seconds != STRANGE_DEFAULT_TIMEOUT_SECONDS) {
+      if (index != 1 + leading_flag_count) {
         set_error(error_buffer, error_buffer_size,
                   "`--random` only supports `strange --random "
                   "<screensaver-name>...`");
@@ -172,8 +169,8 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         return -1;
       }
 
-      if (reject_options_with_preview(options, saw_disable_key, error_buffer,
-                                      error_buffer_size) == -1) {
+      if (reject_options_with_preview(options, saw_timeout || saw_disable_key,
+                                      error_buffer, error_buffer_size) == -1) {
         return -1;
       }
 
@@ -291,9 +288,6 @@ void strange_cli_print_usage(FILE *stream, const char *prog_name) {
   fprintf(stream, "Usage: %s [options] <screensaver-name>\n", prog_name);
   fprintf(stream, "       %s [options] --random <screensaver-name>...\n",
           prog_name);
-  fprintf(stream, "       %s [options] --timeout <seconds> "
-                  "<screensaver-name>\n",
-          prog_name);
   fprintf(stream, "       %s --now <screensaver-name>\n", prog_name);
   fprintf(stream, "       %s --now --random <screensaver-name>...\n",
           prog_name);
@@ -301,16 +295,19 @@ void strange_cli_print_usage(FILE *stream, const char *prog_name) {
   fprintf(stream, "       %s --status\n", prog_name);
   fprintf(stream, "       %s -h | --help\n", prog_name);
   fprintf(stream, "\n");
-  fprintf(stream, "  --timeout seconds: inactivity before the screensaver "
-                  "starts (default: %d)\n",
-          STRANGE_DEFAULT_TIMEOUT_SECONDS);
+  fprintf(stream, "  --random: pick one of the named screensavers\n");
+  fprintf(stream, "  --now: run only the screensaver, without a shell, until a "
+                  "key is pressed\n");
+  fprintf(stream, "  --list: list the built-in screensavers and those in "
+                  "~/.strange/\n");
   fprintf(stream, "  --status: say whether this terminal is running under "
                   "strange and how it\n"
                   "            was started; exits 0 if it is and 1 if not\n");
-  fprintf(stream, "  --now: run only the screensaver, without a shell, "
-                  "until a key is pressed\n");
   fprintf(stream, "\nOptions, which come first:\n");
-  fprintf(stream, "  --disable-key key: the key that turns the screensaver off "
+  fprintf(stream, "  --timeout seconds: inactivity before the screensaver "
+                  "starts (default: %d)\n",
+          STRANGE_DEFAULT_TIMEOUT_SECONDS);
+  fprintf(stream, "  --disable-key key: the key that disables the screensaver "
                   "for the session,\n"
                   "                     such as ctrl-g, or none to reserve no "
                   "key (default: ctrl-q)\n");
