@@ -297,6 +297,66 @@ TEST(ScreensaverRegistryTest, DenabaseBuiltinRendersThroughSharedContract) {
   strange_screen_buffer_free(&buffer);
 }
 
+TEST(ScreensaverRegistryTest, DenabaseHelixPairsTheBaseMarkedInTheTable) {
+  const strange_screensaver_descriptor *descriptor =
+      strange_builtin_screensaver_find("denabase");
+  strange_screensaver_instance instance = {};
+  ScreenBuffer buffer = {};
+  const int focus_row = 10;
+  const int table_right = 30;
+  int pairs_checked = 0;
+
+  std::srand(1);
+  ASSERT_NE(descriptor, nullptr);
+  ASSERT_EQ(strange_screen_buffer_init(&buffer, 60, 20, 1), 0);
+  ASSERT_EQ(
+      strange_screensaver_instance_init(&instance, descriptor, &buffer), 0);
+
+  // Every fourth frame scrolls one row and every second row holds a base
+  // pair, so this walks the pair on the focus row through three table rows.
+  for (unsigned long step = 1; step <= 80; ++step) {
+    strange_screensaver_frame frame = {};
+    frame.frame_count = step * 8;
+    strange_screen_buffer_clear(&buffer);
+    ASSERT_EQ(
+        strange_screensaver_instance_update(&instance, &buffer, &frame), 0);
+    frame.frame_count = step * 8 + 4;
+    strange_screen_buffer_clear(&buffer);
+    ASSERT_EQ(
+        strange_screensaver_instance_update(&instance, &buffer, &frame), 0);
+
+    const std::string marker_row(buffer.buffer + (focus_row - 1) * buffer.w,
+                                 table_right);
+    const std::string row(buffer.buffer + focus_row * buffer.w, buffer.w);
+    const size_t marked_column = marker_row.find('v');
+    ASSERT_NE(marked_column, std::string::npos);
+
+    const char base = row[marked_column];
+    const size_t left = row.find_first_of("ACGT", table_right + 1);
+    const size_t right = row.find_last_of("ACGT");
+    if (left == std::string::npos) {
+      // The strands cross here and leave no room for the pair.
+      continue;
+    }
+    ASSERT_NE(left, right);
+    ++pairs_checked;
+
+    const std::string pair = {row[left], row[right]};
+    const std::string expected = base == 'A'   ? "AT"
+                                 : base == 'T' ? "TA"
+                                 : base == 'G' ? "GC"
+                                               : "CG";
+    const std::string reversed(expected.rbegin(), expected.rend());
+    EXPECT_TRUE(pair == expected || pair == reversed)
+        << "step " << step << ": table marks " << base << " but the helix shows "
+        << pair;
+  }
+  EXPECT_GT(pairs_checked, 60);
+
+  strange_screensaver_instance_cleanup(&instance);
+  strange_screen_buffer_free(&buffer);
+}
+
 TEST(ScreensaverRegistryTest, DigitalRainBuiltinRendersThroughSharedContract) {
   const strange_screensaver_descriptor *descriptor =
       strange_builtin_screensaver_find("digital-rain");

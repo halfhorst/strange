@@ -7,16 +7,18 @@
   partially inspired by those scenes.
 
   This demo is split in half. On the right, a DNA helix scrolls upward. On the
-  left, a nucleobase block reveals a larger region of the DNA, scrolling in
-  time with the helix. The DNA sequence is generated at random.
+  left, a table shows the sequence around the stretch the helix is passing
+  through. The DNA sequence is generated at random.
 
-  The DNA helix is constructed from two sinusoids, one mirrored and offset
-  from the other. Those two sinusoids are parametrized by a single parameter,
-  as well as a step function that defines where linkages occur. That single
-  parameter is tied to the frame count to progress the strand.
+  The two halves read the same sequence. Each base pair is a rung of the
+  helix, labelled with the base on one strand and its complement on the other.
+  The rung level with the middle of the screen is the current base: the table
+  keeps the row holding it in its focus row and marks its column. When the
+  helix has scrolled through every base of that row, the table moves up a row.
 
-  TODO: Index the same sequence with the DNA block and the helix. For now they
-        just appear related.
+  The helix is two sinusoids over the screen row, the second mirrored and a
+  little ahead in phase, which is what gives the wide and narrow grooves.
+
   TODO: A writeup on how to flatten the 3D helix into 2D
   TODO: Use a sequence from a real organizm.
 */

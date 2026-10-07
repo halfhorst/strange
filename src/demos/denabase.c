@@ -1,75 +1,52 @@
 #include <errno.h>
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 #include "../renderer.h"
 #include "./denabase.h"
 
-#define SEQUENCE_BUFFER_SIZE 100000
+#define SEQUENCE_LENGTH 100000
+#define SEQUENCE_NAME "IDENT #09817 (H. sapiens)"
 
-// Helix geometry constants
+// Helix geometry. The pitch is in screen rows per radian, and the second
+// strand runs ahead of the first by the phase.
 #define STRAND_RADIUS 10
-#define STRAND_PITCH 4
-#define STRAND_OFFSET -2.5
-#define LINKAGE_PARAMETER 5
-
-// Nucleobase block constants
-#define BASES_PER_ROW(w) (w / 2) - 3
-#define TOTAL_BASES(w, h) (BASES_PER_ROW(w) * (h - 5))
+#define STRAND_PITCH 4.0
+#define STRAND_PHASE 0.625
+#define STRAND_MARKER '0'
+#define STRAND_SAMPLES_PER_ROW 10
+#define ROWS_PER_BASE 2
 
 // discretized rendering makes things look bad at slow speeds
-#define HELIX_SCROLL_SPEED 4
-
-
-struct Coord {
-  int x;
-  int y;
-};
-
-struct Helix {
-  double radius;
-  double pitch;
-  double x_shift;
-  double y_shift;
-  char marker;
-};
-
-struct DnaSequence {
-  char *sequence;
-  char *complement;
-  size_t capacity;
-  const char *name;
-};
+#define FRAMES_PER_ROW 4
 
 struct denabase_state {
-  struct Helix strand_1;
-  struct Helix strand_2;
-  struct DnaSequence dna_sequence;
-  int block_sequence_index;
+  char *sequence;
+  long scroll;  // screen rows the helix has moved up by
 };
 
-static int allocate_dna_sequence(struct DnaSequence *dna);
-static void free_dna_sequence(struct DnaSequence *dna);
-static void update_helix(double radius, double pitch, double x_shift,
-                         double y_shift, struct Helix *helix);
-static void compute_helix_coord(double t, const struct Helix *helix,
-                                struct Coord *coord);
-static int generate_random_sequence(size_t capacity, bool is_dna,
-                                    char *sequence_buffer);
-static void get_sequence_complement(const char *sequence, size_t capacity,
-                                    bool is_dna, char *complement_buffer);
-static char get_complement(char nucleotide, bool is_dna);
-static int draw_helix(struct denabase_state *state, struct ScreenBuffer *buffer,
-                      int t_min, int t_max);
-static void draw_nucleic_acid_block(struct denabase_state *state,
-                                    struct ScreenBuffer *buffer,
-                                    int seq_index);
+// Where things go for the current buffer size.
+struct layout {
+  int table_right;
+  int bases_per_row;
+  int focus_row;
+  int helix_center;
+  int helix_radius;
+  long sequence_rows;
+};
+
+static void generate_random_sequence(char *sequence, size_t length);
+static char complement(char base);
+static int compute_layout(const struct ScreenBuffer *buffer,
+                          struct layout *layout);
+static void draw_table(const struct denabase_state *state,
+                       struct ScreenBuffer *buffer, const struct layout *layout);
+static void draw_helix(const struct denabase_state *state,
+                       struct ScreenBuffer *buffer, const struct layout *layout);
 
 static int denabase_init(void **state, struct ScreenBuffer *buffer) {
   struct denabase_state *denabase = NULL;
-  bool isDNA = true;
 
   (void)buffer;
   if (state == NULL) {
@@ -81,116 +58,39 @@ static int denabase_init(void **state, struct ScreenBuffer *buffer) {
   if (denabase == NULL) {
     return -1;
   }
-  if (allocate_dna_sequence(&denabase->dna_sequence) == -1 ||
-      generate_random_sequence(denabase->dna_sequence.capacity, isDNA,
-                               denabase->dna_sequence.sequence) == -1) {
-    free_dna_sequence(&denabase->dna_sequence);
+  denabase->sequence = malloc(SEQUENCE_LENGTH);
+  if (denabase->sequence == NULL) {
     free(denabase);
     return -1;
   }
-  get_sequence_complement(denabase->dna_sequence.sequence,
-                          denabase->dna_sequence.capacity, isDNA,
-                          denabase->dna_sequence.complement);
 
-  denabase->strand_1.marker = '0';
-  denabase->strand_2.marker = '0';
-  denabase->block_sequence_index = 0;
+  generate_random_sequence(denabase->sequence, SEQUENCE_LENGTH);
   *state = denabase;
   return 0;
-}
-
-static int allocate_dna_sequence(struct DnaSequence *dna) {
-  if (dna == NULL) {
-    errno = EINVAL;
-    return -1;
-  }
-
-  memset(dna, 0, sizeof(*dna));
-  dna->sequence = malloc(sizeof(char) * SEQUENCE_BUFFER_SIZE);
-  if (dna->sequence == NULL) {
-    return -1;
-  }
-  dna->complement = malloc(sizeof(char) * SEQUENCE_BUFFER_SIZE);
-  if (dna->complement == NULL) {
-    free(dna->sequence);
-    dna->sequence = NULL;
-    return -1;
-  }
-
-  dna->capacity = SEQUENCE_BUFFER_SIZE;
-  dna->name = "IDENT #09817 (H. sapiens)";
-  return 0;
-}
-
-static void free_dna_sequence(struct DnaSequence *dna) {
-  if (dna == NULL) {
-    return;
-  }
-
-  free(dna->sequence);
-  free(dna->complement);
-  dna->sequence = NULL;
-  dna->complement = NULL;
-  dna->capacity = 0;
-  dna->name = NULL;
 }
 
 static int denabase_update(
     void *state, struct ScreenBuffer *sbuffer,
     const struct strange_screensaver_frame *frame) {
   struct denabase_state *denabase = state;
-  unsigned long frame_count = 0;
-  int helix_center = sbuffer->w * 0.75;
-  double y_shift = 0.0;
+  struct layout layout;
 
   if (denabase == NULL || sbuffer == NULL) {
     errno = EINVAL;
     return -1;
   }
-  if (frame != NULL) {
-    frame_count = frame->frame_count;
+  if (frame != NULL && (frame->frame_count % FRAMES_PER_ROW) == 0) {
+    denabase->scroll++;
+  }
+  if (compute_layout(sbuffer, &layout) == -1) {
+    return 0;
   }
 
-  y_shift = denabase->strand_1.y_shift;
-  if ((frame_count % HELIX_SCROLL_SPEED) == 0) {
-    y_shift--;
-  }
-  update_helix(STRAND_RADIUS, STRAND_PITCH, helix_center,
-               y_shift, &denabase->strand_1);
-  update_helix(-STRAND_RADIUS, STRAND_PITCH, helix_center,
-               y_shift + STRAND_OFFSET, &denabase->strand_2);
+  // The sequence is treated as a loop of whole table rows.
+  denabase->scroll %= layout.sequence_rows * layout.bases_per_row * ROWS_PER_BASE;
 
-  // Calculate the range of t that covers the display.
-  // We assume strand 2 is shifted up in y, and so has
-  // a strictly greater y-shift. Unequal pitch would
-  // wreck this.
-  int t_min = ((-denabase->strand_2.y_shift) / denabase->strand_2.pitch);
-  int t_max =
-      ((sbuffer->h - denabase->strand_1.y_shift) / denabase->strand_1.pitch);
-
-  // t min to to max defines a set of linkages
-  // t % linkage_param defines where a linkage is
-  // those t's also define y's
-
-
-
-
-
-  // int t_index = t_min % SEQUENCE_BUFFER_SIZE;
-
-  // // if necessary, shift the sequence
-  // if (block_sequence_index + BASES_PER_ROW(sbuffer->w) < t_index) {
-  //   block_sequence_index += BASES_PER_ROW(sbuffer->w);
-  // }
-
-  // int helix_sequence_index = t_index + ((sbuffer->w / 2) - 3) * (sbuffer->h / 2);
-
-  // draw the helix from t_min to t_max
-  draw_helix(denabase, sbuffer, t_min, t_max);
-
-  // draw the nucleic acid block
-  draw_nucleic_acid_block(denabase, sbuffer, denabase->block_sequence_index);
-
+  draw_helix(denabase, sbuffer, &layout);
+  draw_table(denabase, sbuffer, &layout);
   return 0;
 }
 
@@ -201,7 +101,7 @@ static void denabase_cleanup(void *state) {
     return;
   }
 
-  free_dna_sequence(&denabase->dna_sequence);
+  free(denabase->sequence);
   free(denabase);
 }
 
@@ -214,187 +114,193 @@ const struct strange_screensaver_descriptor strange_denabase_descriptor = {
     .cleanup = denabase_cleanup,
 };
 
+static void put(struct ScreenBuffer *buffer, char character, int x, int y) {
+  write_to_buffer(buffer, &character, 1, x, y);
+}
+
+static long floor_divide(long value, long divisor) {
+  long quotient = value / divisor;
+
+  return (value % divisor != 0 && value < 0) ? quotient - 1 : quotient;
+}
+
+static long wrap(long value, long modulus) {
+  long remainder = value % modulus;
+
+  return remainder < 0 ? remainder + modulus : remainder;
+}
+
+// The base pair that the screen row `y` falls on. The one level with the
+// focus row is the current base.
+static long base_at_row(const struct denabase_state *state,
+                        const struct layout *layout, int y) {
+  long base = floor_divide(state->scroll + y - layout->focus_row, ROWS_PER_BASE);
+
+  return wrap(base, layout->sequence_rows * layout->bases_per_row);
+}
+
 /*
-  Draw a helix in the center of the right half of the window defined by
-  W x H. The helix is parameterized over a variable t. The range of t
-  necessary to cover the window is calculated, and the helix is shifted
-  by offsetting t by time or frame count.
+  The table takes the left half: a border, the name, and rows of sequence with
+  the focus row set apart in the middle. Returns -1 if the buffer is too small
+  to draw anything sensible.
 */
-static int draw_helix(struct denabase_state *state, struct ScreenBuffer *sbuffer,
-                      int t_min, int t_max) {
-  float t_resolution = 10;
-  struct Coord s1_coord, s2_coord;
-  const struct Helix *strand_1 = &state->strand_1;
-  const struct Helix *strand_2 = &state->strand_2;
+static int compute_layout(const struct ScreenBuffer *buffer,
+                          struct layout *layout) {
+  int right_half = 0;
 
-  for (int t_fine = (t_min * t_resolution);
-       t_fine <= (t_max * t_resolution); t_fine++) {
-    // we calculated a range to cover the display. We want to draw the
-    // helices at the same y-coordinate rather than the same parameter value
-    // because it will make drawing the linakges easier. This entails
-    // drawing just a bit extra, but it shouldn't be a problem and saves an
-    // inverse t -> y calculation.
-    float param_1 = t_fine / (float) t_resolution;
-    // This assumes equal pitch
-    float param_2 = param_1 + ((strand_1->y_shift - strand_2->y_shift)
-                               / STRAND_PITCH);
-
-    compute_helix_coord(param_1, strand_1, &s1_coord);
-    if ((s1_coord.y > 0) && (s1_coord.y < sbuffer->h)) {
-      write_to_buffer(sbuffer, &strand_1->marker, 1, s1_coord.x, s1_coord.y);
-    }
-
-    compute_helix_coord(param_2, strand_2, &s2_coord);
-    if ((s2_coord.y > 0) && (s2_coord.y < sbuffer->h)) {
-      write_to_buffer(sbuffer, &strand_2->marker, 1, s2_coord.x, s2_coord.y);
-    }
-
-    // decide if this t corresponds to a linkage
-    // if it does, render it
-    // t_min % LINKAGE_PARAMETER;
-
-    // based on one of the parameters, draw the linkage
-    // decide if linkage is here. if so, get boundaries and draw
-    // if ((t_fine % LINKAGE_PARAMETER) == 0) {
-    //   int min_x = (s1_coord.x < s2_coord.x) ? s1_coord.x : s2_coord.x;
-    //   int max_x = (s1_coord.x == min_x) ? s2_coord.x : s1_coord.x;
-    // //   // y coordinates should be the same
-    //   int y = s1_coord.y;
-
-    // //   // TODO: properly index the dna sequence
-    //   int sequence_index = (int) param_1 % SEQUENCE_BUFFER_SIZE;
-    //   draw_linkage(sbuffer, min_x, max_x, y, sequence_index + linkage_counter);
-    //   linkage_counter++;
-    // }
-  }
-  return 0;
-}
-
-
-/* Update `helix` with the parameters provided. */
-static void update_helix(double radius, double pitch, double x_shift,
-                         double y_shift, struct Helix *helix) {
-  helix->radius = radius;
-  helix->pitch = pitch;
-  helix->x_shift = x_shift;
-  helix->y_shift = y_shift;
-}
-
-/* Compute the (x, y) coordinates of the helix at parameter `t`. */
-static void compute_helix_coord(double t, const struct Helix *helix,
-                                struct Coord *coord) {
-  int x = (helix->radius * cos(t)) + helix->x_shift;
-  int y = (helix->pitch * t) + helix->y_shift;
-  coord->x = x;
-  coord->y = y;
-}
-
-static int generate_random_sequence(size_t capacity, bool isDNA,
-                                    char *sequence_buffer) {
-  /*  G-C
-      A-T/U
-      humans are roughly 30% AT and 20% GC
-  */
-
-  if (sequence_buffer == NULL) {
-    errno = EINVAL;
+  layout->table_right = buffer->w / 2;
+  layout->bases_per_row = layout->table_right - 3;
+  layout->focus_row = buffer->h / 2;
+  if (layout->bases_per_row < 1 || buffer->h < 7) {
     return -1;
   }
 
-  int rand_int;
-  float selection;
-  for (size_t i = 0; i < capacity; i++) {
-    rand_int = rand();
-    selection = rand_int / (double)RAND_MAX;
-    if (selection < 0.2) {
-      sequence_buffer[i] = 'G';
-    } else if (0.2 <= selection && selection < 0.4) {
-      sequence_buffer[i] = 'C';
-    } else if (0.4 <= selection && selection < 0.7) {
-      sequence_buffer[i] = 'A';
-    } else {
-      if (isDNA) {
-        sequence_buffer[i] = 'T';
-      } else {
-        sequence_buffer[i] = 'U';
-      }
-    }
+  right_half = buffer->w - layout->table_right - 1;
+  layout->helix_center = layout->table_right + 1 + (right_half / 2);
+  layout->helix_radius = (right_half / 2) - 1;
+  if (layout->helix_radius > STRAND_RADIUS) {
+    layout->helix_radius = STRAND_RADIUS;
   }
 
+  layout->sequence_rows = SEQUENCE_LENGTH / layout->bases_per_row;
   return 0;
 }
 
-static void get_sequence_complement(const char *sequence, size_t capacity,
-                                    bool isDNA, char *complement_buffer) {
-  for (size_t i = 0; i < capacity; i++) {
-    complement_buffer[i] = get_complement(sequence[i], isDNA);
+static void draw_table(const struct denabase_state *state,
+                       struct ScreenBuffer *buffer, const struct layout *layout) {
+  long current_base = base_at_row(state, layout, layout->focus_row);
+  long focus_sequence_row = current_base / layout->bases_per_row;
+  int current_column = 2 + (int)(current_base % layout->bases_per_row);
+  int bottom = buffer->h - 1;
+
+  for (int x = 1; x < layout->table_right; x++) {
+    put(buffer, '_', x, 0);
+    put(buffer, '_', x, bottom);
+  }
+  for (int y = 1; y <= bottom; y++) {
+    put(buffer, '|', 0, y);
+    put(buffer, '|', layout->table_right, y);
+  }
+  put(buffer, '<', 0, layout->focus_row);
+  put(buffer, '>', layout->table_right, layout->focus_row);
+
+  for (int x = 0; x < layout->bases_per_row && SEQUENCE_NAME[x] != '\0'; x++) {
+    put(buffer, SEQUENCE_NAME[x], 2 + x, 1);
+  }
+
+  for (int y = 2; y < bottom; y++) {
+    int offset = y - layout->focus_row;
+    long sequence_row = 0;
+
+    if (offset == -1 || offset == 1) {
+      continue;
+    }
+
+    // The blank rows either side of the focus row are not sequence rows.
+    sequence_row = focus_sequence_row + (offset < 0 ? offset + 1 : 0) +
+                   (offset > 0 ? offset - 1 : 0);
+    sequence_row = wrap(sequence_row, layout->sequence_rows);
+    for (int x = 0; x < layout->bases_per_row; x++) {
+      put(buffer, state->sequence[sequence_row * layout->bases_per_row + x],
+          2 + x, y);
+    }
+  }
+
+  put(buffer, 'v', current_column, layout->focus_row - 1);
+  put(buffer, '^', current_column, layout->focus_row + 1);
+}
+
+static int strand_column(const struct layout *layout, double angle) {
+  return layout->helix_center + (int)floor(layout->helix_radius * cos(angle) + 0.5);
+}
+
+// Draws the base and its complement between the strands, facing the strand
+// each belongs to, when the strands are far enough apart on this row.
+static void draw_base_pair(struct ScreenBuffer *buffer, int y, char base,
+                           int base_strand_min, int base_strand_max,
+                           int other_strand_min, int other_strand_max) {
+  int base_is_left = base_strand_min < other_strand_min;
+  int left = (base_is_left ? base_strand_max : other_strand_max) + 1;
+  int right = (base_is_left ? other_strand_min : base_strand_min) - 1;
+
+  if (right - left < 1) {
+    return;
+  }
+
+  put(buffer, base_is_left ? base : complement(base), left, y);
+  put(buffer, base_is_left ? complement(base) : base, right, y);
+  for (int x = left + 1; x < right; x++) {
+    put(buffer, '-', x, y);
   }
 }
 
-static char get_complement(char nucleotide, bool isDNA) {
-  switch (nucleotide) {
-    case 'A':
-      if (isDNA) {
-        return 'T';
-      } else {
-        return 'U';
-      }
-    case 'T':
-      return 'A';
-    case 'U':
-      return 'A';
-    case 'G':
-      return 'C';
-    case 'C':
-      return 'G';
-    default:
-      return ' ';
+static void draw_helix(const struct denabase_state *state,
+                       struct ScreenBuffer *buffer, const struct layout *layout) {
+  if (layout->helix_radius < 3) {
+    return;
+  }
+
+  for (int y = 0; y < buffer->h; y++) {
+    long helix_row = state->scroll + y - layout->focus_row;
+    int strand_1_min = buffer->w;
+    int strand_1_max = -1;
+    int strand_2_min = buffer->w;
+    int strand_2_max = -1;
+
+    // A strand can cross several columns within one row, so sample it more
+    // finely than the rows to leave no gaps.
+    for (int sample = 0; sample < STRAND_SAMPLES_PER_ROW; sample++) {
+      double angle = (helix_row + (sample / (double)STRAND_SAMPLES_PER_ROW)) /
+                     STRAND_PITCH;
+      int strand_1 = strand_column(layout, angle);
+      int strand_2 = strand_column(layout, angle + STRAND_PHASE + 3.14159265358979);
+
+      put(buffer, STRAND_MARKER, strand_1, y);
+      put(buffer, STRAND_MARKER, strand_2, y);
+      strand_1_min = strand_1 < strand_1_min ? strand_1 : strand_1_min;
+      strand_1_max = strand_1 > strand_1_max ? strand_1 : strand_1_max;
+      strand_2_min = strand_2 < strand_2_min ? strand_2 : strand_2_min;
+      strand_2_max = strand_2 > strand_2_max ? strand_2 : strand_2_max;
+    }
+
+    if (wrap(helix_row, ROWS_PER_BASE) == 0) {
+      draw_base_pair(buffer, y, state->sequence[base_at_row(state, layout, y)],
+                     strand_1_min, strand_1_max, strand_2_min, strand_2_max);
+    }
   }
 }
 
-// // fill the DNA block starting at sequence->current
-static void draw_nucleic_acid_block(struct denabase_state *state,
-                                    struct ScreenBuffer *sbuffer,
-                                    int seq_index) {
-  int window_middle = sbuffer->w / 2;
-  int num_bases_per_row = window_middle - 3;
-  int focus_row = sbuffer->h / 2;
+/*
+  G pairs with C and A with T. Humans are roughly 30% each of A and T and 20%
+  each of G and C.
+*/
+static void generate_random_sequence(char *sequence, size_t length) {
+  for (size_t i = 0; i < length; i++) {
+    double selection = rand() / (double)RAND_MAX;
 
-  char top_border = '_';
-  char side_border = '|';
-  char bottom_border = '_';
-  char focus_left = '<';
-  char focus_right = '>';
-
-  // top border
-  memset(sbuffer->buffer + 1, top_border, window_middle - 1);
-
-  // side borders
-  for (int i = 1; i < sbuffer->h; i++) {
-    write_to_buffer(sbuffer, &side_border, 1, 0, i);
-    write_to_buffer(sbuffer, &side_border, 1, window_middle, i);
+    if (selection < 0.2) {
+      sequence[i] = 'G';
+    } else if (selection < 0.4) {
+      sequence[i] = 'C';
+    } else if (selection < 0.7) {
+      sequence[i] = 'A';
+    } else {
+      sequence[i] = 'T';
+    }
   }
-  write_to_buffer(sbuffer, &focus_left, 1, 0, focus_row);
-  write_to_buffer(sbuffer, &focus_right, 1, window_middle, focus_row);
+}
 
-  // bottom border
-  memset(sbuffer->buffer + ((sbuffer->h - 1) * sbuffer->w) + 1, bottom_border, window_middle - 1);
-
-  // print the name seqence
-  memcpy(sbuffer->buffer + (sbuffer->w) + 2, state->dna_sequence.name,
-         strlen(state->dna_sequence.name));
-
-  // copy by row. padding for border and a space is given
-  // TODO: This indexing is off by one I think
-  for (int i = 2; i < sbuffer->h - 1; i++) {
-    memcpy(sbuffer->buffer + (i * sbuffer->w) + 2,
-           (state->dna_sequence.sequence + seq_index) + (i * num_bases_per_row),
-           window_middle - 3);
+static char complement(char base) {
+  switch (base) {
+  case 'A':
+    return 'T';
+  case 'T':
+    return 'A';
+  case 'G':
+    return 'C';
+  case 'C':
+    return 'G';
+  default:
+    return ' ';
   }
-
-  // blank the delineating rows
-  memset(sbuffer->buffer + ((focus_row - 1) * sbuffer->w) + 1,
-         SL_SPACE_CHAR, window_middle - 1);
-  memset(sbuffer->buffer + ((focus_row + 1) * sbuffer->w) + 1,
-         SL_SPACE_CHAR, window_middle - 1);
 }
