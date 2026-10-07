@@ -114,6 +114,16 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
       continue;
     }
 
+    if (strcmp(argv[index], "--status") == 0) {
+      if (index != 1 || argc != 2) {
+        set_error(error_buffer, error_buffer_size,
+                  "`--status` does not accept additional arguments");
+        return -1;
+      }
+      options->command = STRANGE_CLI_COMMAND_STATUS;
+      return 0;
+    }
+
     if (strcmp(argv[index], "--list") == 0) {
       if (index != 1 || argc != 2) {
         set_error(error_buffer, error_buffer_size,
@@ -200,7 +210,8 @@ int strange_cli_resolve_screensaver(
 
   *descriptor = NULL;
   if (options->command == STRANGE_CLI_COMMAND_HELP ||
-      options->command == STRANGE_CLI_COMMAND_LIST) {
+      options->command == STRANGE_CLI_COMMAND_LIST ||
+      options->command == STRANGE_CLI_COMMAND_STATUS) {
     return 0;
   }
 
@@ -265,11 +276,15 @@ void strange_cli_print_usage(FILE *stream, const char *prog_name) {
   fprintf(stream, "       %s --now --random <screensaver-name>...\n",
           prog_name);
   fprintf(stream, "       %s --list\n", prog_name);
+  fprintf(stream, "       %s --status\n", prog_name);
   fprintf(stream, "       %s -h | --help\n", prog_name);
   fprintf(stream, "\n");
   fprintf(stream, "  --timeout seconds: inactivity before the screensaver "
                   "starts (default: %d)\n",
           STRANGE_DEFAULT_TIMEOUT_SECONDS);
+  fprintf(stream, "  --status: say whether this terminal is running under "
+                  "strange and how it\n"
+                  "            was started; exits 0 if it is and 1 if not\n");
   fprintf(stream, "  --now: run only the screensaver, without a shell, "
                   "until a key is pressed\n");
   fprintf(stream, "  --cover-fullscreen: also start over full-screen programs "

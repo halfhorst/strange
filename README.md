@@ -33,6 +33,15 @@ the screensaver nor holds it off; whatever was printed meanwhile appears on
 waking. A full-screen program such as `vim`, `less` or `top` does hold it off
 while it runs. Pass `--cover-fullscreen` to start over those too.
 
+`strange --status` says whether the current terminal is running under
+`strange` and with what screensaver and timeout, and exits 0 if it is. The
+wrapped shell also gets `STRANGE_TTY`, `STRANGE_SCREENSAVER`, `STRANGE_TIMEOUT`
+and `STRANGE_COVER_FULLSCREEN`, which describe how the session started.
+`strange` refuses to start inside a terminal it is already wrapping, so a shell
+startup file can launch it with:
+
+    strange --status >/dev/null || exec strange digital_rain
+
 `--now` runs only the screensaver, with no shell underneath, and exits on any
 key. It is the quick way to try one while writing it: if the screensaver
 fails, the reason is printed and the exit status is 1.

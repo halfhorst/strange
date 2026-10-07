@@ -13,6 +13,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include "src/session.h"
+
 int master_fd = -1;
 pid_t shell_pid = -1;
 
@@ -264,6 +266,11 @@ static void exec_login_shell_or_die(const char *shell_path,
 
   if (slave_fd > STDERR_FILENO) {
     close(slave_fd);
+  }
+
+  if (setenv(STRANGE_SESSION_TTY_VARIABLE, slave_name, 1) == -1) {
+    perror("setenv");
+    _exit(EXIT_FAILURE);
   }
 
   close(master_fd);

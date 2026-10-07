@@ -11,6 +11,7 @@
 
 #include "pty.h"
 #include "screensaver.h"
+#include "src/session.h"
 #include "state_machine.h"
 #include "terminal_modes.h"
 
@@ -375,6 +376,12 @@ int strange_run(const struct strange_options *options) {
     return 1;
   }
 
+  if (strange_session_export(options->screensaver_descriptor->name,
+                             options->timeout_seconds,
+                             options->cover_fullscreen) == -1) {
+    perror("setenv");
+    return 1;
+  }
   if (setup_pty_and_shell() < 0) {
     fprintf(stderr, "Failed to set up PTY and shell\n");
     return 1;

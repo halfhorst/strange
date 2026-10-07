@@ -169,6 +169,22 @@ TEST(CliTest, ResolvesNamedBuiltInScreensaver) {
   EXPECT_STREQ(descriptor->name, "denabase");
 }
 
+TEST(CliTest, StatusStandsAlone) {
+  char arg0[] = "strange";
+  char status[] = "--status";
+  char name[] = "denabase";
+  strange_cli_options options = {};
+  char error[256] = {0};
+
+  char *alone[] = {arg0, status};
+  ASSERT_EQ(strange_cli_parse(2, alone, &options, error, sizeof(error)), 0);
+  EXPECT_EQ(options.command, STRANGE_CLI_COMMAND_STATUS);
+
+  char *with_name[] = {arg0, status, name};
+  EXPECT_EQ(strange_cli_parse(3, with_name, &options, error, sizeof(error)),
+            -1);
+}
+
 TEST(CliTest, NowSelectsPreviewAndRejectsSessionOptions) {
   char arg0[] = "strange";
   char cover[] = "--cover-fullscreen";

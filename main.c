@@ -5,6 +5,7 @@
 
 #include "pty/runtime.h"
 #include "src/cli.h"
+#include "src/session.h"
 
 static int validate_interactive_tty(void) {
   if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
@@ -55,6 +56,9 @@ int main(int argc, char *argv[]) {
     strange_cli_print_usage(stdout, argv[0]);
     return EXIT_SUCCESS;
   }
+  if (cli_options.command == STRANGE_CLI_COMMAND_STATUS) {
+    return strange_session_print_status(stdout, ttyname(STDIN_FILENO));
+  }
   if (cli_options.command == STRANGE_CLI_COMMAND_LIST) {
     if (strange_cli_print_list(stdout, error_buffer, sizeof(error_buffer)) != 0) {
       fprintf(stderr, "%s\n", error_buffer);
@@ -80,6 +84,13 @@ int main(int argc, char *argv[]) {
 
   if (cli_options.preview) {
     return strange_preview(options.screensaver_descriptor);
+  }
+  if (strange_session_is_current(ttyname(STDIN_FILENO))) {
+    fprintf(stderr,
+            "this terminal is already running under strange; see `%s "
+            "--status`\n",
+            argv[0]);
+    return EXIT_FAILURE;
   }
 
   return strange_run(&options);
