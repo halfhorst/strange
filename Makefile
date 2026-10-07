@@ -33,6 +33,7 @@ TEST_TARGET = strange_test
 TEST_OBJECTS = tests/cli_test.o tests/runtime_state_test.o tests/renderer_test.o tests/screensaver_registry_test.o tests/screensaver_loader_test.o tests/session_test.o tests/keys_test.o tests/terminal_modes_test.o pty/state_machine.o pty/terminal_modes.o pty/watermark.o src/cli.o src/renderer.o src/screensaver_registry.o src/screensaver_loader.o src/lua_screensaver.o src/session.o src/keys.o src/demos/denabase.o src/demos/digital_rain.o $(LUA_OBJECTS)
 
 EXAMPLES = examples/bounce$(PLUGIN_EXTENSION)
+PLUGIN_HEADERS = src/screensaver_registry.h src/renderer.h
 TEST_FIXTURES = tests/fixtures/stale_api$(PLUGIN_EXTENSION)
 
 .PHONY: all clean debug examples test
@@ -57,10 +58,10 @@ $(LUA_DIR)/%.o: $(LUA_DIR)/%.c
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(DEPFLAGS) $(CFLAGS) -c $< -o $@
 
-examples/%$(PLUGIN_EXTENSION): examples/%.c
+examples/%$(PLUGIN_EXTENSION): examples/%.c $(PLUGIN_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLUGIN_LDFLAGS) $< -o $@
 
-tests/fixtures/%$(PLUGIN_EXTENSION): tests/fixtures/%.c
+tests/fixtures/%$(PLUGIN_EXTENSION): tests/fixtures/%.c $(PLUGIN_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLUGIN_LDFLAGS) $< -o $@
 
 tests/%.o: tests/%.cc
