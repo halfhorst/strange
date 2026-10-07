@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "keys.h"
+
 static const char *variable_or(const char *name, const char *fallback) {
   const char *value = getenv(name);
 
@@ -10,14 +12,17 @@ static const char *variable_or(const char *name, const char *fallback) {
 }
 
 int strange_session_export(const char *screensaver_name, int timeout_seconds,
-                           int cover_fullscreen) {
+                           int cover_fullscreen, int disable_key) {
   char timeout[32];
+  char key_label[16];
 
   snprintf(timeout, sizeof(timeout), "%d", timeout_seconds);
+  strange_control_key_label(disable_key, key_label, sizeof(key_label));
   if (setenv(STRANGE_SESSION_SCREENSAVER_VARIABLE, screensaver_name, 1) == -1 ||
       setenv(STRANGE_SESSION_TIMEOUT_VARIABLE, timeout, 1) == -1 ||
       setenv(STRANGE_SESSION_COVER_FULLSCREEN_VARIABLE,
-             cover_fullscreen ? "1" : "0", 1) == -1) {
+             cover_fullscreen ? "1" : "0", 1) == -1 ||
+      setenv(STRANGE_SESSION_DISABLE_KEY_VARIABLE, key_label, 1) == -1) {
     return -1;
   }
 
@@ -47,5 +52,7 @@ int strange_session_print_status(FILE *stream, const char *terminal_name) {
                  "1") == 0
               ? "covered"
               : "hold the screensaver off");
+  fprintf(stream, "  disable key: %s\n",
+          variable_or(STRANGE_SESSION_DISABLE_KEY_VARIABLE, "unknown"));
   return 0;
 }

@@ -11,11 +11,11 @@
 
 #include "pty.h"
 #include "screensaver.h"
+#include "src/keys.h"
 #include "src/session.h"
 #include "state_machine.h"
 #include "terminal_modes.h"
 
-#define STRANGE_DISABLE_KEY 0x11
 #define STRANGE_POLL_INTERVAL_USEC 100000
 #define STRANGE_FRAME_INTERVAL_USEC 16666
 #define STRANGE_BUFFER_SIZE (64 * 1024)
@@ -32,6 +32,8 @@ static struct {
   size_t length;
   size_t capacity;
 } held_output;
+
+static int disable_key;
 
 // Set while the screensaver is drawn over a full-screen program's own screen.
 // The program is told a wrong height meanwhile so that it repaints on wake.
@@ -257,22 +259,64 @@ static int forward_input_slice(struct strange_state_machine *machine,
   return 0;
 }
 
+// Shown in the top right corner, over whatever is there, so that it reads the
+// same at a prompt and inside a full-screen program.
+static void show_notice(const char *text) {
+  char sequence[128];
+  int w = 0;
+  int h = 0;
+  int column = 1;
+  int length = 0;
+
+  if (strange_get_terminal_size(STDOUT_FILENO, &w, &h) == -1) {
+    return;
+  }
+  if ((int)strlen(text) < w) {
+    column = w - (int)strlen(text) + 1;
+  }
+
+  length = snprintf(sequence, sizeof(sequence),
+                    "\0337\033[1;%dH\033[7m%s\033[0m\0338", column, text);
+  if (length > 0 && (size_t)length < sizeof(sequence)) {
+    write_all(STDOUT_FILENO, sequence, (size_t)length);
+  }
+}
+
+static int disable_from_key(struct strange_state_machine *machine,
+                            const struct timespec *now,
+                            struct strange_terminal_modes *modes) {
+  int was_disabled =
+      machine->state == STRANGE_RUNTIME_STATE_SCREENSAVER_DISABLED;
+
+  if (handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_DISABLE, now,
+                           modes) == -1) {
+    return -1;
+  }
+  if (!was_disabled) {
+    show_notice(" strange: screensaver off for this session ");
+  }
+
+  return 0;
+}
+
 static int handle_stdin_buffer(struct strange_state_machine *machine,
                                const char *buffer, size_t length,
                                const struct timespec *now,
                                struct strange_terminal_modes *modes) {
   if (machine->state == STRANGE_RUNTIME_STATE_SCREENSAVER_ACTIVE) {
-    enum strange_runtime_event event =
-        memchr(buffer, STRANGE_DISABLE_KEY, length) != NULL
-            ? STRANGE_RUNTIME_EVENT_DISABLE
-            : STRANGE_RUNTIME_EVENT_USER_INPUT;
-    return handle_runtime_event(machine, event, now, modes);
+    if (disable_key != STRANGE_NO_KEY &&
+        memchr(buffer, disable_key, length) != NULL) {
+      return disable_from_key(machine, now, modes);
+    }
+    return handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_USER_INPUT, now,
+                                modes);
   }
 
   size_t slice_start = 0;
 
   for (size_t index = 0; index < length; ++index) {
-    if ((unsigned char)buffer[index] != STRANGE_DISABLE_KEY) {
+    if (disable_key == STRANGE_NO_KEY ||
+        (unsigned char)buffer[index] != disable_key) {
       continue;
     }
 
@@ -280,8 +324,7 @@ static int handle_stdin_buffer(struct strange_state_machine *machine,
                             now, modes) == -1) {
       return -1;
     }
-    if (handle_runtime_event(machine, STRANGE_RUNTIME_EVENT_DISABLE, now,
-                             modes) == -1) {
+    if (disable_from_key(machine, now, modes) == -1) {
       return -1;
     }
 
@@ -376,9 +419,11 @@ int strange_run(const struct strange_options *options) {
     return 1;
   }
 
+  disable_key = options->disable_key;
+  strange_set_screensaver_disable_key(disable_key);
   if (strange_session_export(options->screensaver_descriptor->name,
                              options->timeout_seconds,
-                             options->cover_fullscreen) == -1) {
+                             options->cover_fullscreen, disable_key) == -1) {
     perror("setenv");
     return 1;
   }

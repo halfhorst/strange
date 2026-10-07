@@ -108,13 +108,18 @@ TEST(RendererCoreTest, WatermarkRendersInstructionsIntoTopRightCorner) {
 
   ASSERT_EQ(strange_screen_buffer_init(&buffer, 30, 4, 1), 0);
   strange_screen_buffer_clear(&buffer);
-  render_screensaver_watermark(&buffer, 0);
+  render_screensaver_watermark(&buffer, 0, 0x11);
 
   std::string row0(buffer.buffer, buffer.w);
   std::string row1(buffer.buffer + buffer.w, buffer.w);
 
   EXPECT_EQ(row0.find(wake_line), 30U - std::strlen(wake_line));
   EXPECT_EQ(row1.find(disable_line), 30U - std::strlen(disable_line));
+
+  strange_screen_buffer_clear(&buffer);
+  render_screensaver_watermark(&buffer, 0, 0);
+  EXPECT_EQ(std::string(buffer.buffer + buffer.w, buffer.w),
+            std::string(30, ' '));
 
   strange_screen_buffer_free(&buffer);
 }

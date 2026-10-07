@@ -20,7 +20,10 @@ on my second monitor that is calming and visual. `strange` fits that role.
 `strange` is a PTY-backed terminal wrapper. Run it as the terminal session you
 want to monitor. It starts a child shell, forwards input and output during
 normal use, and starts a screensaver after a period of inactivity. Any key
-wakes it and restores the screen; `Ctrl-Q` disables it for the session.
+wakes it and restores the screen. `Ctrl-Q` turns it off for the rest of the
+session, whether or not it is showing, and a notice in the top right corner
+confirms it. `--disable-key ctrl-g` picks another key and `--disable-key none`
+reserves none.
 
     strange digital-rain
     strange --timeout 120 denabase
@@ -36,7 +39,8 @@ while it runs. Pass `--cover-fullscreen` to start over those too.
 `strange --status` says whether the current terminal is running under
 `strange` and with what screensaver and timeout, and exits 0 if it is. The
 wrapped shell also gets `STRANGE_TTY`, `STRANGE_SCREENSAVER`, `STRANGE_TIMEOUT`
-and `STRANGE_COVER_FULLSCREEN`, which describe how the session started.
+`STRANGE_COVER_FULLSCREEN` and `STRANGE_DISABLE_KEY`, which describe how the
+session started.
 `strange` refuses to start inside a terminal it is already wrapping, so a shell
 startup file can launch it with:
 

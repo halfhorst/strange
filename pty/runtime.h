@@ -9,6 +9,9 @@ struct strange_options {
   int timeout_seconds;
   // Start the screensaver even while a full-screen program is running.
   int cover_fullscreen;
+  // The control byte that turns the screensaver off for the session, or
+  // STRANGE_NO_KEY to reserve none.
+  int disable_key;
   const struct strange_screensaver_descriptor *screensaver_descriptor;
 };
 

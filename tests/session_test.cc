@@ -26,6 +26,7 @@ class SessionTest : public ::testing::Test {
     unsetenv(STRANGE_SESSION_SCREENSAVER_VARIABLE);
     unsetenv(STRANGE_SESSION_TIMEOUT_VARIABLE);
     unsetenv(STRANGE_SESSION_COVER_FULLSCREEN_VARIABLE);
+    unsetenv(STRANGE_SESSION_DISABLE_KEY_VARIABLE);
   }
 };
 
@@ -51,13 +52,14 @@ TEST_F(SessionTest, StatusReportsTheExportedConfiguration) {
   int result = 1;
 
   ASSERT_EQ(setenv(STRANGE_SESSION_TTY_VARIABLE, "/dev/ttys001", 1), 0);
-  ASSERT_EQ(strange_session_export("wave", 45, 1), 0);
+  ASSERT_EQ(strange_session_export("wave", 45, 1, 0x07), 0);
 
   EXPECT_EQ(Status("/dev/ttys001", &result),
             "Running under strange\n"
             "  screensaver: wave\n"
             "  timeout: 45 seconds\n"
-            "  full-screen programs: covered\n");
+            "  full-screen programs: covered\n"
+            "  disable key: Ctrl-G\n");
   EXPECT_EQ(result, 0);
 }
 

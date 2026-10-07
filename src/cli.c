@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "keys.h"
 #include "screensaver_loader.h"
 #include "screensaver_registry.h"
 
@@ -39,12 +40,13 @@ static int parse_positive_seconds(const char *value, int *timeout_seconds) {
 }
 
 static int reject_options_with_preview(const struct strange_cli_options *options,
-                                       int saw_timeout, char *error_buffer,
+                                       int saw_session_option,
+                                       char *error_buffer,
                                        size_t error_buffer_size) {
-  if (options->preview && (saw_timeout || options->cover_fullscreen)) {
+  if (options->preview && (saw_session_option || options->cover_fullscreen)) {
     set_error(error_buffer, error_buffer_size,
-              "`--now` runs only the screensaver, so `--timeout` and "
-              "`--cover-fullscreen` do not apply");
+              "`--now` runs only the screensaver, so `--timeout`, "
+              "`--cover-fullscreen` and `--disable-key` do not apply");
     return -1;
   }
 
@@ -55,6 +57,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
                       char *error_buffer, size_t error_buffer_size) {
   int saw_timeout = 0;
   int leading_flag_count = 0;
+  int saw_disable_key = 0;
 
   if (options == NULL || argc < 1 || argv == NULL || argv[0] == NULL) {
     set_error(error_buffer, error_buffer_size, "invalid CLI arguments");
@@ -64,6 +67,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
   memset(options, 0, sizeof(*options));
   options->command = STRANGE_CLI_COMMAND_RUN_NAMED;
   options->timeout_seconds = STRANGE_DEFAULT_TIMEOUT_SECONDS;
+  options->disable_key = STRANGE_DEFAULT_DISABLE_KEY;
 
   if (argc == 2 &&
       (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
@@ -85,6 +89,26 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         options->cover_fullscreen = 1;
       }
       leading_flag_count++;
+      continue;
+    }
+
+    if (strcmp(argv[index], "--disable-key") == 0) {
+      if (index != 1 + leading_flag_count) {
+        set_error(error_buffer, error_buffer_size,
+                  "`--disable-key` must come before the other arguments");
+        return -1;
+      }
+      if (index + 1 >= argc ||
+          strange_parse_control_key(argv[index + 1], &options->disable_key) !=
+              0) {
+        set_error(error_buffer, error_buffer_size,
+                  "`--disable-key` takes a key such as `ctrl-q`, or `none`; "
+                  "ctrl-i, ctrl-j and ctrl-m cannot be used");
+        return -1;
+      }
+      saw_disable_key = 1;
+      leading_flag_count += 2;
+      ++index;
       continue;
     }
 
@@ -148,7 +172,7 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
         return -1;
       }
 
-      if (reject_options_with_preview(options, 0, error_buffer,
+      if (reject_options_with_preview(options, saw_disable_key, error_buffer,
                                       error_buffer_size) == -1) {
         return -1;
       }
@@ -191,8 +215,8 @@ int strange_cli_parse(int argc, char *argv[], struct strange_cli_options *option
     return -1;
   }
 
-  return reject_options_with_preview(options, saw_timeout, error_buffer,
-                                     error_buffer_size);
+  return reject_options_with_preview(options, saw_timeout || saw_disable_key,
+                                     error_buffer, error_buffer_size);
 }
 
 int strange_cli_resolve_screensaver(
@@ -264,12 +288,10 @@ int strange_cli_resolve_screensaver(
 }
 
 void strange_cli_print_usage(FILE *stream, const char *prog_name) {
-  fprintf(stream, "Usage: %s [--cover-fullscreen] <screensaver-name>\n",
+  fprintf(stream, "Usage: %s [options] <screensaver-name>\n", prog_name);
+  fprintf(stream, "       %s [options] --random <screensaver-name>...\n",
           prog_name);
-  fprintf(stream, "       %s [--cover-fullscreen] --random "
-                  "<screensaver-name>...\n",
-          prog_name);
-  fprintf(stream, "       %s [--cover-fullscreen] --timeout <seconds> "
+  fprintf(stream, "       %s [options] --timeout <seconds> "
                   "<screensaver-name>\n",
           prog_name);
   fprintf(stream, "       %s --now <screensaver-name>\n", prog_name);
@@ -287,6 +309,11 @@ void strange_cli_print_usage(FILE *stream, const char *prog_name) {
                   "            was started; exits 0 if it is and 1 if not\n");
   fprintf(stream, "  --now: run only the screensaver, without a shell, "
                   "until a key is pressed\n");
+  fprintf(stream, "\nOptions, which come first:\n");
+  fprintf(stream, "  --disable-key key: the key that turns the screensaver off "
+                  "for the session,\n"
+                  "                     such as ctrl-g, or none to reserve no "
+                  "key (default: ctrl-q)\n");
   fprintf(stream, "  --cover-fullscreen: also start over full-screen programs "
                   "such as vim or top,\n"
                   "                      which otherwise hold the screensaver "

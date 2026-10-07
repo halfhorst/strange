@@ -169,6 +169,39 @@ TEST(CliTest, ResolvesNamedBuiltInScreensaver) {
   EXPECT_STREQ(descriptor->name, "denabase");
 }
 
+TEST(CliTest, DisableKeyDefaultsToCtrlQAndCanBeChangedOrRemoved) {
+  char arg0[] = "strange";
+  char flag[] = "--disable-key";
+  char ctrl_g[] = "ctrl-g";
+  char none[] = "none";
+  char enter[] = "ctrl-m";
+  char cover[] = "--cover-fullscreen";
+  char now[] = "--now";
+  char name[] = "denabase";
+  strange_cli_options options = {};
+  char error[256] = {0};
+
+  char *plain[] = {arg0, name};
+  ASSERT_EQ(strange_cli_parse(2, plain, &options, error, sizeof(error)), 0);
+  EXPECT_EQ(options.disable_key, 0x11);
+
+  char *changed[] = {arg0, flag, ctrl_g, cover, name};
+  ASSERT_EQ(strange_cli_parse(5, changed, &options, error, sizeof(error)), 0);
+  EXPECT_EQ(options.disable_key, 0x07);
+  EXPECT_TRUE(options.cover_fullscreen);
+
+  char *removed[] = {arg0, flag, none, name};
+  ASSERT_EQ(strange_cli_parse(4, removed, &options, error, sizeof(error)), 0);
+  EXPECT_EQ(options.disable_key, 0);
+
+  char *unusable[] = {arg0, flag, enter, name};
+  EXPECT_EQ(strange_cli_parse(4, unusable, &options, error, sizeof(error)), -1);
+
+  char *with_preview[] = {arg0, now, flag, ctrl_g, name};
+  EXPECT_EQ(strange_cli_parse(5, with_preview, &options, error, sizeof(error)),
+            -1);
+}
+
 TEST(CliTest, StatusStandsAlone) {
   char arg0[] = "strange";
   char status[] = "--status";

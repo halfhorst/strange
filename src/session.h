@@ -16,9 +16,10 @@ extern "C" {
 #define STRANGE_SESSION_SCREENSAVER_VARIABLE "STRANGE_SCREENSAVER"
 #define STRANGE_SESSION_TIMEOUT_VARIABLE "STRANGE_TIMEOUT"
 #define STRANGE_SESSION_COVER_FULLSCREEN_VARIABLE "STRANGE_COVER_FULLSCREEN"
+#define STRANGE_SESSION_DISABLE_KEY_VARIABLE "STRANGE_DISABLE_KEY"
 
 int strange_session_export(const char *screensaver_name, int timeout_seconds,
-                           int cover_fullscreen);
+                           int cover_fullscreen, int disable_key);
 
 /*
   The variables are inherited by anything started from the wrapped shell,

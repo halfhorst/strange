@@ -5,6 +5,7 @@
 
 #include "pty/runtime.h"
 #include "src/cli.h"
+#include "src/keys.h"
 #include "src/session.h"
 
 static int validate_interactive_tty(void) {
@@ -41,6 +42,7 @@ int main(int argc, char *argv[]) {
   struct strange_options options = {
       .timeout_seconds = STRANGE_DEFAULT_TIMEOUT_SECONDS,
       .cover_fullscreen = 0,
+      .disable_key = STRANGE_DEFAULT_DISABLE_KEY,
       .screensaver_descriptor = NULL,
   };
   char error_buffer[256] = {0};
@@ -77,6 +79,7 @@ int main(int argc, char *argv[]) {
   }
   options.timeout_seconds = cli_options.timeout_seconds;
   options.cover_fullscreen = cli_options.cover_fullscreen;
+  options.disable_key = cli_options.disable_key;
 
   if (validate_interactive_tty() != 0) {
     return EXIT_FAILURE;

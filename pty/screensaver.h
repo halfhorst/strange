@@ -10,6 +10,7 @@ void disable_raw_mode(void);
 int strange_set_screensaver_descriptor(
     const struct strange_screensaver_descriptor *descriptor);
 void strange_set_screensaver_preview(int preview);
+void strange_set_screensaver_disable_key(int key);
 int enter_screensaver(int use_alternate_screen);
 void leave_screensaver(int show_cursor);
 int render_screensaver_frame(const struct timespec *now);
